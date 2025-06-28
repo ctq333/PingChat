@@ -6,10 +6,7 @@
           注册
         </h2>
         <!-- 用户名输入框 -->
-        <UFormGroup
-          class="w-full block"
-          :error="inputError && !account ? '请输入用户名' : undefined"
-        >
+
           <UInput
             v-model="account"
             icon="material-symbols:person"
@@ -23,12 +20,9 @@
               input: (inputError && !account ? 'border-red-500' : 'border-gray-300 focus:border-blue-500') + ' w-full h-14 text-xl px-4'
             }"
           />
-        </UFormGroup>
+
         <!-- 密码输入框 -->
-        <UFormGroup
-          class="w-full block"
-          :error="inputError && !password ? '请输入密码' : undefined"
-        >
+
           <div class="relative w-full">
             <UInput
               v-model="password"
@@ -54,7 +48,6 @@
               <UIcon :name="showPassword ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" class="w-6 h-6" />
             </button>
           </div>
-        </UFormGroup>
         <!-- 返回登录按钮 -->
         <div class="flex justify-between items-center">
           <router-link
@@ -68,7 +61,7 @@
         <!-- 注册按钮 -->
         <div class="flex justify-center">
           <UButton
-            class="w-fit px-5 h-12 text-base"
+            class="w-fit px-5 h-10 text-base"
             icon="material-symbols:person-add"
             :loading="loading"
             type="submit"
@@ -114,7 +107,7 @@ async function onRegisterClick() {
   }
   loading.value = true
   try {
-    const response = await request.post('/auth/register', {
+    const response = await request.post('/api/auth/register', {
       username: account.value,
       password: password.value
     })

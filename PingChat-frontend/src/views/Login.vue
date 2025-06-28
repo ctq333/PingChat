@@ -7,27 +7,20 @@
         </h2>
         
         <!-- 用户名输入框 -->
-        <UFormGroup
-          class="w-full block"
-          :error="inputError && !account ? '请输入用户名或邮箱' : undefined"
-        >
           <UInput
             v-model="account"
             icon="material-symbols:person"
-            placeholder="用户名或邮箱"
+            placeholder="用户名"
             autocomplete="username"
             class="w-full h-12"
             size="xl"
             color="neutral"
             :ui="{ base: 'w-full', input: (inputError && !account ? 'border-red-500' : '') + ' w-full' }"
           />
-        </UFormGroup>
+
         
         <!-- 密码输入框 -->
-        <UFormGroup
-          class="w-full block"
-          :error="inputError && !password ? '请输入密码' : undefined"
-        >
+
           <div class="relative w-full">
             <UInput
               v-model="password"
@@ -50,7 +43,7 @@
               <UIcon :name="showPassword ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" class="w-5 h-5" />
             </button>
           </div>
-        </UFormGroup>
+
         
         <!-- 注册按钮 -->
         <div class="flex justify-between items-center">
@@ -71,6 +64,7 @@
             size="xl"
             :loading="loading"
             type="submit"
+            @click="onBtnLoginClick"
           >
             登录
           </UButton>
@@ -89,6 +83,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import store from '@/store'
 import request from '@/utils/request'
+
 
 const account = ref('')
 const password = ref('')
@@ -111,7 +106,7 @@ async function onBtnLoginClick() {
 
   loading.value = true
   try {
-    const response = await request.post('/auth/login', {
+    const response = await request.post('/api/auth/login', {
       username: account.value,
       password: password.value
     })

@@ -1,8 +1,10 @@
+// src/utils/request.js
 import axios from 'axios'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
 const request = axios.create({
-  // 你可以在这里配置 baseURL、timeout、headers 等
-  baseURL: '/', // 根据实际项目配置
+  baseURL: API_BASE_URL, // 自动加上你的后端地址
   timeout: 10000
 })
 
