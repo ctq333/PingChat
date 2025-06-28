@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import ui from '@nuxt/ui/vite'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import Icons from 'unplugin-icons/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -17,6 +18,9 @@ export default defineConfig({
       }
     }),
     tailwindcss(),
+    Icons({
+      autoInstall: true,
+    }),
   ],
   resolve: {
     alias: {
