@@ -1,57 +1,80 @@
 <template>
-  <div class="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-200 overflow-hidden">
+  <div class="fixed inset-0 flex items-center justify-center bg-gray-50">
     <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg px-8 py-10">
       <form @submit.prevent="onBtnLoginClick" class="space-y-6" autocomplete="off">
         <h2 class="text-3xl font-bold text-center mb-8 flex items-center justify-center gap-2">
           登录
         </h2>
+        
         <!-- 用户名输入框 -->
         <UFormGroup
+          class="w-full block"
           :error="inputError && !account ? '请输入用户名或邮箱' : undefined"
         >
           <UInput
             v-model="account"
-            size="lg"
-            icon="i-heroicons-user"
+            icon="material-symbols:person"
             placeholder="用户名或邮箱"
             autocomplete="username"
-            :ui="{ base: 'w-full', input: inputError && !account ? 'border-red-500' : '' }"
+            class="w-full h-12"
+            size="xl"
+            color="neutral"
+            :ui="{ base: 'w-full', input: (inputError && !account ? 'border-red-500' : '') + ' w-full' }"
           />
         </UFormGroup>
+        
         <!-- 密码输入框 -->
         <UFormGroup
+          class="w-full block"
           :error="inputError && !password ? '请输入密码' : undefined"
         >
-          <UInput
-            v-model="password"
-            size="lg"
-            icon="i-heroicons-lock-closed"
-            type="password"
-            placeholder="密码"
-            autocomplete="current-password"
-            :ui="{ base: 'w-full', input: inputError && !password ? 'border-red-500' : '' }"
-            :trailing-icon="showPassword ? 'i-heroicons-eye-off' : 'i-heroicons-eye'"
-            @trailing-icon-click="showPassword = !showPassword"
-            :type="showPassword ? 'text' : 'password'"
-          />
+          <div class="relative w-full">
+            <UInput
+              v-model="password"
+              icon="material-symbols:lock"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="密码"
+              autocomplete="current-password"
+              class="w-full pr-12"
+              size="xl"
+              color="neutral"
+              :ui="{ base: 'w-full', input: (inputError && !password ? 'border-red-500' : '') + ' w-full pr-12' }"
+            />
+            <!-- 密码显示/隐藏按钮 -->
+            <button
+              type="button"
+              @click="showPassword = !showPassword"
+              class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"
+              tabindex="-1"
+            >
+              <UIcon :name="showPassword ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" class="w-5 h-5" />
+            </button>
+          </div>
         </UFormGroup>
+        
         <!-- 注册按钮 -->
         <div class="flex justify-between items-center">
-          <NuxtLink to="/signup" class="text-blue-500 hover:underline text-sm flex items-center gap-1">
-            <UIcon name="i-heroicons-user-plus" class="w-4 h-4" />
+          <router-link
+            to="/signup"
+            class="text-blue-500 hover:underline text-sm flex items-center gap-1"
+          >
+            <UIcon name="material-symbols:person-add" class="w-5 h-5" />
             注册账号
-          </NuxtLink>
+          </router-link>
         </div>
+        
         <!-- 登录按钮 -->
-        <UButton
-          size="lg"
-          class="w-full"
-          icon="i-heroicons-arrow-right-on-rectangle"
-          :loading="loading"
-          @click="onBtnLoginClick"
-        >
-          登录
-        </UButton>
+        <div class="flex justify-center">
+          <UButton
+            class="w-fit"
+            icon="material-symbols:login"
+            size="xl"
+            :loading="loading"
+            type="submit"
+          >
+            登录
+          </UButton>
+        </div>
         <!-- 错误提示 -->
         <div v-if="loginError" class="text-red-500 text-sm mt-4 text-center">
           {{ loginError }}

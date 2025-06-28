@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-200 overflow-hidden">
+  <div class="fixed inset-0 flex items-center justify-center overflow-hidden">
     <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg px-8 py-10">
       <form @submit.prevent="onRegisterClick" class="space-y-6" autocomplete="off">
         <h2 class="text-3xl font-bold text-center mb-8 flex items-center justify-center gap-2">
@@ -7,50 +7,75 @@
         </h2>
         <!-- 用户名输入框 -->
         <UFormGroup
+          class="w-full block"
           :error="inputError && !account ? '请输入用户名' : undefined"
         >
           <UInput
             v-model="account"
-            size="lg"
-            icon="i-heroicons-user"
+            icon="material-symbols:person"
             placeholder="用户名"
             autocomplete="username"
-            :ui="{ base: 'w-full', input: inputError && !account ? 'border-red-500' : '' }"
+            class="w-full text-xl"
+            color="neutral"
+            size="xl"
+            :ui="{
+              base: 'w-full',
+              input: (inputError && !account ? 'border-red-500' : 'border-gray-300 focus:border-blue-500') + ' w-full h-14 text-xl px-4'
+            }"
           />
         </UFormGroup>
         <!-- 密码输入框 -->
         <UFormGroup
+          class="w-full block"
           :error="inputError && !password ? '请输入密码' : undefined"
         >
-          <UInput
-            v-model="password"
-            size="lg"
-            icon="i-heroicons-lock-closed"
-            :type="showPassword ? 'text' : 'password'"
-            placeholder="密码"
-            autocomplete="new-password"
-            :ui="{ base: 'w-full', input: inputError && !password ? 'border-red-500' : '' }"
-            :trailing-icon="showPassword ? 'i-heroicons-eye-off' : 'i-heroicons-eye'"
-            @trailing-icon-click="showPassword = !showPassword"
-          />
+          <div class="relative w-full">
+            <UInput
+              v-model="password"
+              icon="material-symbols:lock"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="密码"
+              autocomplete="new-password"
+              class="w-full pr-12 text-xl"
+              size="xl"
+              color="neutral"
+              :ui="{
+                base: 'w-full',
+                input: (inputError && !password ? 'border-red-500' : 'border-gray-300 focus:border-blue-500') + ' w-full h-14 text-xl px-4 pr-12'
+              }"
+            />
+            <!-- 密码显示/隐藏按钮 -->
+            <button
+              type="button"
+              @click="showPassword = !showPassword"
+              class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"
+              tabindex="-1"
+            >
+              <UIcon :name="showPassword ? 'material-symbols:visibility-off' : 'material-symbols:visibility'" class="w-6 h-6" />
+            </button>
+          </div>
         </UFormGroup>
         <!-- 返回登录按钮 -->
         <div class="flex justify-between items-center">
-          <NuxtLink to="/login" class="text-blue-500 hover:underline text-sm flex items-center gap-1">
-            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+          <router-link
+            to="/login"
+            class="text-blue-500 hover:underline text-sm flex items-center gap-1"
+          >
+            <UIcon name="material-symbols:arrow-back" class="w-5 h-5" />
             返回登录
-          </NuxtLink>
+          </router-link>
         </div>
         <!-- 注册按钮 -->
-        <UButton
-          size="lg"
-          class="w-full"
-          icon="i-heroicons-user-plus"
-          :loading="loading"
-          @click="onRegisterClick"
-        >
-          注册
-        </UButton>
+        <div class="flex justify-center">
+          <UButton
+            class="w-fit px-5 h-12 text-base"
+            icon="material-symbols:person-add"
+            :loading="loading"
+            type="submit"
+          >
+            注册
+          </UButton>
+        </div>
         <!-- 错误/成功提示 -->
         <div v-if="regError" class="text-red-500 text-sm mt-4 text-center">
           {{ regError }}
@@ -96,7 +121,7 @@ async function onRegisterClick() {
     if (response.data.code === 201) {
       regSuccess.value = '注册成功，正在跳转登录...'
       setTimeout(() => {
-        router.push({ name: 'login' })
+        router.push('/login')
       }, 1000)
     } else {
       regError.value = `注册失败: ${response.data.message}`
