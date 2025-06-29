@@ -68,17 +68,22 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫，参照你的实现
+// 路由守卫重写
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const requiresAdmin = to.meta.requiresAdmin
-  const isLogin = store.getters.isLogin
-  const isAdmin = store.getters.isAdmin
+
+  // 直接从 localStorage 获取
+  const token = localStorage.getItem('token')
+  const userJson = localStorage.getItem('user')
+  const user = userJson ? JSON.parse(userJson) : null
+  const isLogin = !!token && !!user
+  const isAdmin = user && user.is_admin
 
   if (requiresAuth && !isLogin) {
     next('/login')
   } else if (requiresAdmin && !isAdmin) {
-    next('/chat') // 非管理员跳转到主聊天页
+    next('/chat')
   } else {
     next()
   }

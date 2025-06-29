@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import IconSend from '~icons/material-symbols/send'
 import IconImage from '~icons/material-symbols/image'
 import IconClose from '~icons/material-symbols/close'
@@ -13,23 +13,49 @@ const props = defineProps({
   }
 })
 
-// mock 消息数据
-const messages = ref([
-  // { id, senderId, senderName, type: 'text'|'image', content, time }
-  { id: 1, senderId: 2, senderName: '张三', type: 'text', content: '你好！', time: Date.now() - 60000 },
-  { id: 2, senderId: 1, senderName: '我', type: 'text', content: '你好！很高兴见到你。', time: Date.now() - 55000 },
-  { id: 3, senderId: 2, senderName: '张三', type: 'image', content: 'https://via.placeholder.com/150', time: Date.now() - 54000 },
-])
+const messages = ref([])
+const loading = ref(false)
+
+async function fetchMessages(chat) {
+  loading.value = true
+  let url = ''
+  let params = {}
+  if (chat.type === 'user') {
+    url = '/api/chat/history'
+    params = { user_id: props.currentUser.id, peer_id: chat.id, page: 1, page_size: 30 }
+  } else if (chat.type === 'group') {
+    url = '/api/chat/group_history'
+    params = { group_id: chat.id, page: 1, page_size: 30 }
+  }
+  try {
+    const resp = await request.get(url, { params })
+    // 字段适配
+    messages.value = resp.data.data.messages.map(msg => ({
+      id: msg.id,
+      senderId: msg.sender_id,
+      senderName: msg.sender_name,
+      type: msg.msg_type,
+      content: msg.content,
+      time: msg.send_time,
+      avatarUrl: msg.avatar_url || '', // 适配头像（可选）
+    }))
+  } catch (e) {
+    // 错误处理
+    messages.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 // 判断是不是群聊
 const isGroup = computed(() => props.chat?.type === 'group')
 
-// 群聊成员 mock（后续可用实际接口）
-const groupMembers = ref([
-  { id: 2, name: '张三' },
-  { id: 3, name: '李四' },
-  { id: 1, name: '我' }
-])
+// 当选择聊天对象时加载历史
+watch(() => props.chat, (chat) => {
+  if (chat) fetchMessages(chat)
+}, { immediate: true })
+
+
 
 // 全屏图片查看
 const fullImage = ref(null)

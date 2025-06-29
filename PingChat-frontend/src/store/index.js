@@ -11,15 +11,19 @@ export default createStore({
     isAdmin: state => state.user && state.user.is_admin,
   },
   mutations: {
-    SET_USER(state, user) {
-      state.user = user
-    },
     SET_TOKEN(state, token) {
       state.token = token
+      localStorage.setItem('token', token)
+    },
+    SET_USER(state, user) {
+      state.user = user
+      localStorage.setItem('user', JSON.stringify(user))
     },
     LOGOUT(state) {
-      state.user = null
       state.token = null
+      state.user = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
     }
   }
 })
