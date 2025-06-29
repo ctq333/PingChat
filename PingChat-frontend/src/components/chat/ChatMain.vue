@@ -1,21 +1,59 @@
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
+import request from '@/utils/request'
+import socket from '@/utils/socket' // 注意引入！
+
 import IconSend from '~icons/material-symbols/send'
 import IconImage from '~icons/material-symbols/image'
 import IconClose from '~icons/material-symbols/close'
 
-// props: chat（群组或单聊对象），currentUser
 const props = defineProps({
   chat: Object,
   currentUser: {
     type: Object,
-    default: () => ({ id: 1, name: '我' })
   }
 })
 
 const messages = ref([])
 const loading = ref(false)
 
+// 连接 socket
+onMounted(() => {
+  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  if (user) socket.connect(user.id)
+  socket.onSingleMessage(handleSingleMessage)
+  socket.onGroupMessage(handleGroupMessage)
+  socket.onGroupImage(handleGroupImage)
+})
+onUnmounted(() => {
+  socket.offSingleMessage(handleSingleMessage)
+  socket.offGroupMessage(handleGroupMessage)
+  socket.offGroupImage(handleGroupImage)
+})
+
+// 收到单聊消息
+function handleSingleMessage(msg) {
+  // 只显示发给自己或自己发出的且和当前窗口相关的消息
+  if (
+    props.chat &&
+    (
+      (msg.from === props.currentUser.id && msg.to === props.chat.id) ||
+      (msg.from === props.chat.id && msg.to === props.currentUser.id)
+    )
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.from,
+      senderName: '', // 可选补充
+      type: msg.msg_type,
+      content: msg.content,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+
+// 拉历史消息
 async function fetchMessages(chat) {
   loading.value = true
   let url = ''
@@ -26,34 +64,127 @@ async function fetchMessages(chat) {
   } else if (chat.type === 'group') {
     url = '/api/chat/group_history'
     params = { group_id: chat.id, page: 1, page_size: 30 }
+  } else {
+    messages.value = []
+    loading.value = false
+    return
   }
   try {
     const resp = await request.get(url, { params })
-    // 字段适配
-    messages.value = resp.data.data.messages.map(msg => ({
-      id: msg.id,
-      senderId: msg.sender_id,
-      senderName: msg.sender_name,
-      type: msg.msg_type,
-      content: msg.content,
-      time: msg.send_time,
-      avatarUrl: msg.avatar_url || '', // 适配头像（可选）
-    }))
+    messages.value = (resp.data.data.messages || []).map(msg => {
+      // 统一结构适配
+      const base = {
+        id: msg.id,
+        senderId: msg.sender_id,
+        senderName: msg.sender_name || '', // 可选
+        type: msg.msg_type,
+        content: msg.content,
+        time: msg.send_time,
+        avatarUrl: msg.avatar_url || ''
+      }
+      // 群聊图片消息额外字段
+      if (msg.msg_type === 'image' && msg.extra) {
+        return {
+          ...base,
+          imageId: msg.extra.image_id,
+          filename: msg.extra.filename,
+          extra: msg.extra
+        }
+      }
+      return base
+    })
+    nextTick(scrollToBottom)
   } catch (e) {
-    // 错误处理
     messages.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 判断是不是群聊
-const isGroup = computed(() => props.chat?.type === 'group')
-
-// 当选择聊天对象时加载历史
+// 监听切换聊天对象时拉历史
 watch(() => props.chat, (chat) => {
   if (chat) fetchMessages(chat)
 }, { immediate: true })
+
+// 发送文字消息
+const inputText = ref('')
+function sendText() {
+  const text = inputText.value.trim()
+  if (!text || !props.chat) return
+
+  if (props.chat.type === 'group') {
+    // 群聊
+    socket.sendGroupMessage({
+      from: props.currentUser.id,
+      group_id: props.chat.id,
+      content: text
+    })
+  } else {
+    // 单聊
+    socket.sendSingleMessage({
+      from: props.currentUser.id,
+      to: props.chat.id,
+      content: text
+    })
+  }
+
+  // 本地回显
+  messages.value.push({
+    id: Date.now(),
+    senderId: props.currentUser.id,
+    type: 'text',
+    content: text,
+    time: Date.now()
+  })
+  inputText.value = ''
+  nextTick(scrollToBottom)
+}
+
+// 自动滚到底
+const chatBodyRef = ref(null)
+function scrollToBottom() {
+  if (chatBodyRef.value) {
+    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+  }
+}
+// async function fetchMessages(chat) {
+//   loading.value = true
+//   let url = ''
+//   let params = {}
+//   if (chat.type === 'user') {
+//     url = '/api/chat/history'
+//     params = { user_id: props.currentUser.id, peer_id: chat.id, page: 1, page_size: 30 }
+//   } else if (chat.type === 'group') {
+//     url = '/api/chat/group_history'
+//     params = { group_id: chat.id, page: 1, page_size: 30 }
+//   }
+//   try {
+//     const resp = await request.get(url, { params })
+//     // 字段适配
+//     messages.value = resp.data.data.messages.map(msg => ({
+//       id: msg.id,
+//       senderId: msg.sender_id,
+//       senderName: msg.sender_name,
+//       type: msg.msg_type,
+//       content: msg.content,
+//       time: msg.send_time,
+//       avatarUrl: msg.avatar_url || '', // 适配头像（可选）
+//     }))
+//   } catch (e) {
+//     // 错误处理
+//     messages.value = []
+//   } finally {
+//     loading.value = false
+//   }
+// }
+
+// 判断是不是群聊
+const isGroup = computed(() => props.chat?.type === 'group')
+
+// // 当选择聊天对象时加载历史
+// watch(() => props.chat, (chat) => {
+//   if (chat) fetchMessages(chat)
+// }, { immediate: true })
 
 
 
@@ -66,39 +197,75 @@ function closeImage() {
   fullImage.value = null
 }
 
-// 发送消息
-const inputText = ref('')
-const inputRef = ref(null)
-function sendText() {
-  const text = inputText.value.trim()
-  if (!text) return
-  messages.value.push({
-    id: Date.now(),
-    senderId: props.currentUser.id,
-    senderName: props.currentUser.name,
-    type: 'text',
-    content: text,
-    time: Date.now()
-  })
-  inputText.value = ''
-  nextTick(() => scrollToBottom())
-}
+// // 发送消息
+// const inputText = ref('')
+// const inputRef = ref(null)
+// function sendText() {
+//   const text = inputText.value.trim()
+//   if (!text) return
+//   messages.value.push({
+//     id: Date.now(),
+//     senderId: props.currentUser.id,
+//     senderName: props.currentUser.name,
+//     type: 'text',
+//     content: text,
+//     time: Date.now()
+//   })
+//   inputText.value = ''
+//   nextTick(() => scrollToBottom())
+// }
 
 // 发送图片
 function handleImageChange(e) {
   const file = e.target.files[0]
   if (!file) return
-  const url = URL.createObjectURL(file)
-  messages.value.push({
-    id: Date.now(),
-    senderId: props.currentUser.id,
-    senderName: props.currentUser.name,
-    type: 'image',
-    content: url,
-    time: Date.now()
-  })
-  nextTick(() => scrollToBottom())
-  e.target.value = '' // 允许重复选择同一图片
+
+  if (props.chat.type === 'group') {
+    // 群聊图片
+    const reader = new FileReader()
+    reader.onload = function() {
+      socket.sendGroupImage({
+        from: props.currentUser.id,
+        group_id: props.chat.id,
+        image: reader.result,
+        filename: file.name,
+        extra: {} // 可补充 width/height
+      })
+      // 本地回显
+      messages.value.push({
+        id: Date.now(),
+        senderId: props.currentUser.id,
+        type: 'image',
+        content: reader.result,
+        filename: file.name,
+        time: Date.now()
+      })
+    }
+    reader.readAsDataURL(file)
+  } else {
+    // 单聊图片
+    const reader = new FileReader()
+    reader.onload = function() {
+      socket.sendSingleImage({
+        from: props.currentUser.id,
+        to: props.chat.id,
+        image: reader.result,
+        filename: file.name,
+        extra: {} // 可补充 width/height
+      })
+      messages.value.push({
+        id: Date.now(),
+        senderId: props.currentUser.id,
+        type: 'image',
+        content: reader.result,
+        filename: file.name,
+        time: Date.now()
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+  e.target.value = ''
+  nextTick(scrollToBottom)
 }
 
 // 输入框自适应高度
@@ -109,11 +276,88 @@ function autoResize(e) {
   el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px'
 }
 
-const chatBodyRef = ref(null)
-function scrollToBottom() {
-  if (chatBodyRef.value) {
-    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+// const chatBodyRef = ref(null)
+// function scrollToBottom() {
+//   if (chatBodyRef.value) {
+//     chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+//   }
+// }
+
+function handleGroupMessage(msg) {
+  if (
+    isGroup.value &&
+    msg.group_id === props.chat.id
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.sender_id,
+      senderName: msg.sender_name || '', // 这里要保证 senderName 有值
+      type: msg.msg_type,
+      content: msg.content,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
   }
+}
+function handleGroupImage(msg) {
+  if (
+    isGroup.value &&
+    msg.group_id === props.chat.id
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.sender_id,
+      type: msg.msg_type,
+      content: msg.image, // 或者 msg.extra?.image_id
+      filename: msg.filename,
+      imageId: msg.image_id,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+// 发送消息
+function sendGroupText() {
+  const text = inputText.value.trim()
+  if (!text || !props.chat) return
+  socket.sendGroupMessage({
+    from: props.currentUser.id,
+    group_id: props.chat.id,
+    content: text
+  })
+  // 本地回显
+  messages.value.push({
+    id: Date.now(),
+    senderId: props.currentUser.id,
+    type: 'text',
+    content: text,
+    time: Date.now()
+  })
+  inputText.value = ''
+  nextTick(scrollToBottom)
+}
+
+// 发送图片
+function sendGroupImage(file) {
+  const reader = new FileReader()
+  reader.onload = function() {
+    socket.sendGroupImage({
+      from: props.currentUser.id,
+      group_id: props.chat.id,
+      image: reader.result,
+      filename: file.name,
+      extra: {} // 可选图片尺寸
+    })
+    messages.value.push({
+      id: Date.now(),
+      senderId: props.currentUser.id,
+      type: 'image',
+      content: reader.result,
+      filename: file.name,
+      time: Date.now()
+    })
+  }
+  reader.readAsDataURL(file)
 }
 </script>
 
@@ -172,7 +416,7 @@ function scrollToBottom() {
         <!-- 头像（自己发的显示在右侧/群聊） -->
         <div v-if="isGroup && msg.senderId === props.currentUser.id" class="ml-2 flex-shrink-0">
           <div class="w-8 h-8 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center font-bold text-base">
-            {{ msg.senderName[0] }}
+            {{ (msg.senderName && msg.senderName.length > 0) ? msg.senderName[0] : '' }}
           </div>
         </div>
       </div>

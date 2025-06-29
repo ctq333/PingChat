@@ -5,6 +5,7 @@ from sqlalchemy import or_, and_
 
 bp = Blueprint('chat', __name__)
 
+
 # 单聊历史
 @bp.route('/history', methods=['GET'])
 def get_history():
@@ -47,35 +48,27 @@ def get_history():
         }
     })
 
-# 群聊历史
 @bp.route('/group_history', methods=['GET'])
 def get_group_history():
     group_id = request.args.get('group_id', type=int)
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 30, type=int)
-
     if not group_id:
         return jsonify({'code': 400, 'message': '参数缺失'}), 400
-
     query = Message.query.filter(
         Message.group_id == group_id
     ).order_by(Message.send_time.asc())
-
     total = query.count()
     messages = query.offset((page-1)*page_size).limit(page_size).all()
-
     def msg_to_dict(msg):
-        sender = User.query.get(msg.sender_id)
         return {
             'id': msg.id,
             'sender_id': msg.sender_id,
-            'sender_name': sender.nickname or sender.username if sender else '未知',
             'msg_type': msg.msg_type,
             'content': msg.content,
             'send_time': msg.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
-            'avatar_url': sender.avatar_url if sender else '',
+            'extra': msg.extra or {},
         }
-
     return jsonify({
         'code': 200,
         'message': 'OK',

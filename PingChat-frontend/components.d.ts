@@ -22,6 +22,7 @@ declare module 'vue' {
     ExportDialog: typeof import('./src/components/export/ExportDialog.vue')['default']
     FileUploader: typeof import('./src/components/common/FileUploader.vue')['default']
     GroupAnnouncement: typeof import('./src/components/group/GroupAnnouncement.vue')['default']
+    GroupCreateDialog: typeof import('./src/components/group/GroupCreateDialog.vue')['default']
     GroupInfo: typeof import('./src/components/group/GroupInfo.vue')['default']
     GroupInviteDialog: typeof import('./src/components/group/GroupInviteDialog.vue')['default']
     GroupList: typeof import('./src/components/group/GroupList.vue')['default']
