@@ -1,64 +1,46 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
+import request from '@/utils/request' // 你的 axios 工具
 
-// 模拟当前用户
 const currentUser = ref({ id: 1, name: '我' })
 
-// 左侧联系人和群组 mock 数据
-const chatList = ref([
-  {
-    id: 2,
-    name: 'Alice',
-    type: 'user',
-    lastMsgTime: Date.now() - 1000 * 60 * 3,
-    lastMsg: '明天见！'
-  },
-  {
-    id: 3,
-    name: 'Bob',
-    type: 'user',
-    lastMsgTime: Date.now() - 1000 * 60 * 60,
-    lastMsg: '收到，谢谢！'
-  },
-  {
-    id: 4,
-    name: '研发群',
-    type: 'group',
-    lastMsgTime: Date.now() - 1000 * 60 * 10,
-    lastMsg: '下周一开会'
-  },
-  {
-    id: 5,
-    name: '产品群',
-    type: 'group',
-    lastMsgTime: Date.now() - 1000 * 60 * 120,
-    lastMsg: '上线准备'
-  },
-  {
-    id: 6,
-    name: 'Charlie',
-    type: 'user',
-    lastMsgTime: null, // 没有聊天记录
-    lastMsg: null
-  },
-  {
-    id: 7,
-    name: '张三',
-    type: 'user',
-    lastMsgTime: null,
-    lastMsg: null
-  }
-])
+// 会话/联系人/群组列表
+const chatList = ref([])
 
 // 当前激活会话
 const activeChat = ref(null)
 
-// 切换会话
+// 拉取会话列表
+async function fetchChatList() {
+  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  const userId = user ? user.id : null
+  if (!userId) return
+  try {
+    const resp = await request.get('/api/chat/session_list', {
+      params: { user_id: userId }
+    })
+    // 字段适配
+    chatList.value = resp.data.data.map(item => ({
+      id: item.id,
+      name: item.name,
+      type: item.type, // "user" 或 "group"
+      lastMsgTime: item.last_msg_time,
+      lastMsg: item.last_msg,
+      avatarUrl: item.avatar_url // 可选
+    }))
+  } catch (e) {
+    chatList.value = []
+  }
+}
+
+// 选中会话
 function handleSelectChat(chat) {
   activeChat.value = chat
 }
+
+onMounted(fetchChatList)
 </script>
 
 <template>
@@ -70,8 +52,15 @@ function handleSelectChat(chat) {
       @select-chat="handleSelectChat"
     />
     <div class="flex-1 flex flex-col">
-      <ChatMain v-if="activeChat" :chat="activeChat" :currentUser="currentUser" />
-      <div v-else class="flex flex-1 items-center justify-center text-gray-400 text-lg">
+      <ChatMain
+        v-if="activeChat"
+        :chat="activeChat"
+        :currentUser="currentUser"
+      />
+      <div
+        v-else
+        class="flex flex-1 items-center justify-center text-gray-400 text-lg"
+      >
         请选择一个联系人或群组开始聊天
       </div>
     </div>
