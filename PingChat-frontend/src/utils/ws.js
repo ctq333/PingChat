@@ -24,6 +24,7 @@ function connect(userId) {
     }
   }
   socket.onclose = () => {
+    console.warn('WebSocket 已断开，准备重连')
     socket = null
     reconnectTimer = setTimeout(() => {
       connect(userId)
@@ -37,15 +38,19 @@ function connect(userId) {
 function send(obj) {
   if (socket && socket.readyState === 1) {
     socket.send(JSON.stringify(obj))
+  } else {
+    console.warn('WebSocket 未连接，消息未发送')
   }
 }
-
+// 订阅新消息
 function onMessage(fn) {
   listeners.push(fn)
 }
+// 取消订阅
 function offMessage(fn) {
   listeners = listeners.filter(l => l !== fn)
 }
+// 主动关闭
 function close() {
   if (socket) {
     socket.close()
