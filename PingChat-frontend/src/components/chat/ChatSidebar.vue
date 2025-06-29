@@ -4,7 +4,7 @@ import ChatListItem from './ChatListItem.vue'
 import ChatSidebarFooter from './ChatSidebarFooter.vue'
 
 const props = defineProps(['chatList', 'currentUser', 'activeChat'])
-const emit = defineEmits(['select-chat'])
+const emit = defineEmits(['select-chat', 'group-created'])
 
 // 排序规则
 const sortedList = computed(() => {
@@ -17,6 +17,9 @@ const sortedList = computed(() => {
 
 function selectChat(item) {
   emit('select-chat', item)
+}
+function handleGroupCreated(group) {
+  emit('group-created', group)  // 继续冒泡
 }
 </script>
 
@@ -31,6 +34,10 @@ function selectChat(item) {
         @click="selectChat(item)"
       />
     </div>
-    <ChatSidebarFooter :isAdmin="true" />
+    <ChatSidebarFooter
+      :isAdmin="props.currentUser?.is_admin"
+      :ownerId="props.currentUser?.id"
+      @group-created="handleGroupCreated"
+    />
   </aside>
 </template>

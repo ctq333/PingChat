@@ -5,6 +5,7 @@ from sqlalchemy import or_, and_
 
 bp = Blueprint('chat', __name__)
 
+
 # 单聊历史
 @bp.route('/history', methods=['GET'])
 def get_history():

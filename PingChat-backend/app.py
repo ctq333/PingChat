@@ -56,6 +56,6 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     CORS(app, supports_credentials=True)
-    from sockets.chat import register_chat_events
+    from sockets.__init__ import register_chat_events
     register_chat_events(socketio)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

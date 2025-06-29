@@ -4,14 +4,17 @@ import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
 import request from '@/utils/request' // 你的 axios 工具
 
-const currentUser = ref({ id: 1, name: '我' })
+const currentUser = ref(null)
 
 // 会话/联系人/群组列表
 const chatList = ref([])
 
 // 当前激活会话
 const activeChat = ref(null)
-
+onMounted(() => {
+  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  if (user) currentUser.value = user
+})
 // 拉取会话列表
 async function fetchChatList() {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
@@ -41,6 +44,9 @@ function handleSelectChat(chat) {
 }
 
 onMounted(fetchChatList)
+function handleGroupCreated() {
+  fetchChatList()  // 刷新列表，显示新群组
+}
 </script>
 
 <template>
@@ -50,6 +56,7 @@ onMounted(fetchChatList)
       :currentUser="currentUser"
       :activeChat="activeChat"
       @select-chat="handleSelectChat"
+      @group-created="fetchChatList"  
     />
     <div class="flex-1 flex flex-col">
       <ChatMain

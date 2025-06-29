@@ -1,21 +1,55 @@
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
+import request from '@/utils/request'
+import socket from '@/utils/socket' // 注意引入！
+
 import IconSend from '~icons/material-symbols/send'
 import IconImage from '~icons/material-symbols/image'
 import IconClose from '~icons/material-symbols/close'
 
-// props: chat（群组或单聊对象），currentUser
 const props = defineProps({
   chat: Object,
   currentUser: {
     type: Object,
-    default: () => ({ id: 1, name: '我' })
   }
 })
 
 const messages = ref([])
 const loading = ref(false)
 
+// 连接 socket
+onMounted(() => {
+  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  if (user) socket.connect(user.id)
+  socket.onSingleMessage(handleSingleMessage)
+})
+onUnmounted(() => {
+  socket.offSingleMessage(handleSingleMessage)
+})
+
+// 收到单聊消息
+function handleSingleMessage(msg) {
+  // 只显示发给自己或自己发出的且和当前窗口相关的消息
+  if (
+    props.chat &&
+    (
+      (msg.from === props.currentUser.id && msg.to === props.chat.id) ||
+      (msg.from === props.chat.id && msg.to === props.currentUser.id)
+    )
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.from,
+      senderName: '', // 可选补充
+      type: msg.msg_type,
+      content: msg.content,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+
+// 拉历史消息
 async function fetchMessages(chat) {
   loading.value = true
   let url = ''
@@ -39,21 +73,87 @@ async function fetchMessages(chat) {
       time: msg.send_time,
       avatarUrl: msg.avatar_url || '', // 适配头像（可选）
     }))
+    nextTick(scrollToBottom)
   } catch (e) {
-    // 错误处理
     messages.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 判断是不是群聊
-const isGroup = computed(() => props.chat?.type === 'group')
-
-// 当选择聊天对象时加载历史
+// 监听切换聊天对象时拉历史
 watch(() => props.chat, (chat) => {
   if (chat) fetchMessages(chat)
 }, { immediate: true })
+
+// 发送文字消息
+const inputText = ref('')
+function sendText() {
+  const text = inputText.value.trim()
+  if (!text || !props.chat) return
+  // 发送到后端
+  socket.sendSingleMessage({
+    from: props.currentUser.id,
+    to: props.chat.id,
+    content: text
+  })
+  // 本地回显（可选，后端回传消息也能自动插入）
+  messages.value.push({
+    id: Date.now(),
+    senderId: props.currentUser.id,
+    type: 'text',
+    content: text,
+    time: Date.now()
+  })
+  inputText.value = ''
+  nextTick(scrollToBottom)
+}
+
+// 自动滚到底
+const chatBodyRef = ref(null)
+function scrollToBottom() {
+  if (chatBodyRef.value) {
+    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+  }
+}
+// async function fetchMessages(chat) {
+//   loading.value = true
+//   let url = ''
+//   let params = {}
+//   if (chat.type === 'user') {
+//     url = '/api/chat/history'
+//     params = { user_id: props.currentUser.id, peer_id: chat.id, page: 1, page_size: 30 }
+//   } else if (chat.type === 'group') {
+//     url = '/api/chat/group_history'
+//     params = { group_id: chat.id, page: 1, page_size: 30 }
+//   }
+//   try {
+//     const resp = await request.get(url, { params })
+//     // 字段适配
+//     messages.value = resp.data.data.messages.map(msg => ({
+//       id: msg.id,
+//       senderId: msg.sender_id,
+//       senderName: msg.sender_name,
+//       type: msg.msg_type,
+//       content: msg.content,
+//       time: msg.send_time,
+//       avatarUrl: msg.avatar_url || '', // 适配头像（可选）
+//     }))
+//   } catch (e) {
+//     // 错误处理
+//     messages.value = []
+//   } finally {
+//     loading.value = false
+//   }
+// }
+
+// 判断是不是群聊
+const isGroup = computed(() => props.chat?.type === 'group')
+
+// // 当选择聊天对象时加载历史
+// watch(() => props.chat, (chat) => {
+//   if (chat) fetchMessages(chat)
+// }, { immediate: true })
 
 
 
@@ -66,23 +166,23 @@ function closeImage() {
   fullImage.value = null
 }
 
-// 发送消息
-const inputText = ref('')
-const inputRef = ref(null)
-function sendText() {
-  const text = inputText.value.trim()
-  if (!text) return
-  messages.value.push({
-    id: Date.now(),
-    senderId: props.currentUser.id,
-    senderName: props.currentUser.name,
-    type: 'text',
-    content: text,
-    time: Date.now()
-  })
-  inputText.value = ''
-  nextTick(() => scrollToBottom())
-}
+// // 发送消息
+// const inputText = ref('')
+// const inputRef = ref(null)
+// function sendText() {
+//   const text = inputText.value.trim()
+//   if (!text) return
+//   messages.value.push({
+//     id: Date.now(),
+//     senderId: props.currentUser.id,
+//     senderName: props.currentUser.name,
+//     type: 'text',
+//     content: text,
+//     time: Date.now()
+//   })
+//   inputText.value = ''
+//   nextTick(() => scrollToBottom())
+// }
 
 // 发送图片
 function handleImageChange(e) {
@@ -109,12 +209,12 @@ function autoResize(e) {
   el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px'
 }
 
-const chatBodyRef = ref(null)
-function scrollToBottom() {
-  if (chatBodyRef.value) {
-    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
-  }
-}
+// const chatBodyRef = ref(null)
+// function scrollToBottom() {
+//   if (chatBodyRef.value) {
+//     chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+//   }
+// }
 </script>
 
 <template>

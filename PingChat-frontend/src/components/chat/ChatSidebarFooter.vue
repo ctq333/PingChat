@@ -6,8 +6,16 @@ import IconAdminPanelSettings from '~icons/material-symbols/admin-panel-settings
 import IconTune from '~icons/material-symbols/tune'
 import IconExport from '~icons/material-symbols/download' // 用 Material Symbols 的下载/导出图标
 import { ref } from 'vue'
+import GroupCreateDialog from '@/components/group/GroupCreateDialog.vue'
 
-const props = defineProps({ isAdmin: Boolean })
+const emit = defineEmits(['group-created'])
+const props = defineProps({
+  isAdmin: Boolean,
+  ownerId: {
+    type: Number,
+    required: true
+  }
+})
 const showMenu = ref(false)
 function toggleMenu() { showMenu.value = !showMenu.value }
 
@@ -19,7 +27,18 @@ function handleMenu(action) {
     alert('导出聊天记录功能待实现')
   }
 }
-function handleAddGroup() {}
+const showCreateDialog = ref(false)
+function handleAddGroup() {
+  showCreateDialog.value = true
+}
+function handleDialogClose() {
+  showCreateDialog.value = false
+}
+
+function handleGroupCreated(group) {
+  showCreateDialog.value = false
+  emit('group-created', group)
+}
 </script>
 
 <template>
@@ -54,5 +73,11 @@ function handleAddGroup() {}
     >
       <IconAdd class="w-7 h-7" />
     </button>
+    <GroupCreateDialog
+      :show="showCreateDialog"
+      :ownerId="ownerId"
+      @close="handleDialogClose"
+      @created="handleGroupCreated"
+    />
   </div>
 </template>
