@@ -3,6 +3,8 @@ import { io } from 'socket.io-client'
 let socket = null
 let singleListeners = []
 let singleImageListeners = []
+let groupListeners = []
+let groupImageListeners = []
 
 function connect(userId) {
   if (socket) return
@@ -11,14 +13,25 @@ function connect(userId) {
   })
   socket.on('connect', () => console.log('socket.io 已连接'))
   socket.on('disconnect', () => console.log('socket.io 已断开'))
+
+  // 单聊消息
   socket.on('single_message', (msg) => {
     singleListeners.forEach(fn => fn(msg))
   })
   socket.on('single_image', (msg) => {
     singleImageListeners.forEach(fn => fn(msg))
   })
+
+  // 群聊消息
+  socket.on('group_message', (msg) => {
+    groupListeners.forEach(fn => fn(msg))
+  })
+  socket.on('group_image', (msg) => {
+    groupImageListeners.forEach(fn => fn(msg))
+  })
 }
 
+// 发送单聊文字
 function sendSingleMessage({ from, to, content }) {
   if (socket && socket.connected) {
     socket.emit('single_message', {
@@ -30,13 +43,13 @@ function sendSingleMessage({ from, to, content }) {
     })
   }
 }
-
+// 发送单聊图片
 function sendSingleImage({ from, to, image, filename, extra }) {
   if (socket && socket.connected) {
     socket.emit('single_image', {
       from,
       to,
-      image,        // base64字符串
+      image,
       filename,
       msg_type: 'image',
       send_time: Date.now(),
@@ -57,9 +70,55 @@ function onSingleImage(fn) {
 function offSingleImage(fn) {
   singleImageListeners = singleImageListeners.filter(f => f !== fn)
 }
+
+// 群聊
+function sendGroupMessage({ from, group_id, content }) {
+  if (socket && socket.connected) {
+    socket.emit('group_message', {
+      from,
+      group_id,
+      content,
+      msg_type: 'text',
+      send_time: Date.now()
+    })
+  }
+}
+function sendGroupImage({ from, group_id, image, filename, extra }) {
+  if (socket && socket.connected) {
+    socket.emit('group_image', {
+      from,
+      group_id,
+      image,
+      filename,
+      msg_type: 'image',
+      send_time: Date.now(),
+      extra
+    })
+  }
+}
+function onGroupMessage(fn) {
+  groupListeners.push(fn)
+}
+function offGroupMessage(fn) {
+  groupListeners = groupListeners.filter(f => f !== fn)
+}
+function onGroupImage(fn) {
+  groupImageListeners.push(fn)
+}
+function offGroupImage(fn) {
+  groupImageListeners = groupImageListeners.filter(f => f !== fn)
+}
+
 function close() {
-  if (socket) socket.disconnect()
-  socket = null
+  if (socket) {
+    socket.disconnect()
+    socket = null
+  }
+  // 清空所有监听
+  singleListeners = []
+  singleImageListeners = []
+  groupListeners = []
+  groupImageListeners = []
 }
 
 export default {
@@ -70,5 +129,11 @@ export default {
   offSingleMessage,
   onSingleImage,
   offSingleImage,
-  close
+  close,
+  sendGroupMessage,
+  sendGroupImage,
+  onGroupMessage,
+  offGroupMessage,
+  onGroupImage,
+  offGroupImage
 }

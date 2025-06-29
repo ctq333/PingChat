@@ -22,9 +22,13 @@ onMounted(() => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   if (user) socket.connect(user.id)
   socket.onSingleMessage(handleSingleMessage)
+  socket.onGroupMessage(handleGroupMessage)
+  socket.onGroupImage(handleGroupImage)
 })
 onUnmounted(() => {
   socket.offSingleMessage(handleSingleMessage)
+  socket.offGroupMessage(handleGroupMessage)
+  socket.offGroupImage(handleGroupImage)
 })
 
 // 收到单聊消息
@@ -60,19 +64,35 @@ async function fetchMessages(chat) {
   } else if (chat.type === 'group') {
     url = '/api/chat/group_history'
     params = { group_id: chat.id, page: 1, page_size: 30 }
+  } else {
+    messages.value = []
+    loading.value = false
+    return
   }
   try {
     const resp = await request.get(url, { params })
-    // 字段适配
-    messages.value = resp.data.data.messages.map(msg => ({
-      id: msg.id,
-      senderId: msg.sender_id,
-      senderName: msg.sender_name,
-      type: msg.msg_type,
-      content: msg.content,
-      time: msg.send_time,
-      avatarUrl: msg.avatar_url || '', // 适配头像（可选）
-    }))
+    messages.value = (resp.data.data.messages || []).map(msg => {
+      // 统一结构适配
+      const base = {
+        id: msg.id,
+        senderId: msg.sender_id,
+        senderName: msg.sender_name || '', // 可选
+        type: msg.msg_type,
+        content: msg.content,
+        time: msg.send_time,
+        avatarUrl: msg.avatar_url || ''
+      }
+      // 群聊图片消息额外字段
+      if (msg.msg_type === 'image' && msg.extra) {
+        return {
+          ...base,
+          imageId: msg.extra.image_id,
+          filename: msg.extra.filename,
+          extra: msg.extra
+        }
+      }
+      return base
+    })
     nextTick(scrollToBottom)
   } catch (e) {
     messages.value = []
@@ -91,13 +111,24 @@ const inputText = ref('')
 function sendText() {
   const text = inputText.value.trim()
   if (!text || !props.chat) return
-  // 发送到后端
-  socket.sendSingleMessage({
-    from: props.currentUser.id,
-    to: props.chat.id,
-    content: text
-  })
-  // 本地回显（可选，后端回传消息也能自动插入）
+
+  if (props.chat.type === 'group') {
+    // 群聊
+    socket.sendGroupMessage({
+      from: props.currentUser.id,
+      group_id: props.chat.id,
+      content: text
+    })
+  } else {
+    // 单聊
+    socket.sendSingleMessage({
+      from: props.currentUser.id,
+      to: props.chat.id,
+      content: text
+    })
+  }
+
+  // 本地回显
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
@@ -188,17 +219,53 @@ function closeImage() {
 function handleImageChange(e) {
   const file = e.target.files[0]
   if (!file) return
-  const url = URL.createObjectURL(file)
-  messages.value.push({
-    id: Date.now(),
-    senderId: props.currentUser.id,
-    senderName: props.currentUser.name,
-    type: 'image',
-    content: url,
-    time: Date.now()
-  })
-  nextTick(() => scrollToBottom())
-  e.target.value = '' // 允许重复选择同一图片
+
+  if (props.chat.type === 'group') {
+    // 群聊图片
+    const reader = new FileReader()
+    reader.onload = function() {
+      socket.sendGroupImage({
+        from: props.currentUser.id,
+        group_id: props.chat.id,
+        image: reader.result,
+        filename: file.name,
+        extra: {} // 可补充 width/height
+      })
+      // 本地回显
+      messages.value.push({
+        id: Date.now(),
+        senderId: props.currentUser.id,
+        type: 'image',
+        content: reader.result,
+        filename: file.name,
+        time: Date.now()
+      })
+    }
+    reader.readAsDataURL(file)
+  } else {
+    // 单聊图片
+    const reader = new FileReader()
+    reader.onload = function() {
+      socket.sendSingleImage({
+        from: props.currentUser.id,
+        to: props.chat.id,
+        image: reader.result,
+        filename: file.name,
+        extra: {} // 可补充 width/height
+      })
+      messages.value.push({
+        id: Date.now(),
+        senderId: props.currentUser.id,
+        type: 'image',
+        content: reader.result,
+        filename: file.name,
+        time: Date.now()
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+  e.target.value = ''
+  nextTick(scrollToBottom)
 }
 
 // 输入框自适应高度
@@ -215,6 +282,83 @@ function autoResize(e) {
 //     chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
 //   }
 // }
+
+function handleGroupMessage(msg) {
+  if (
+    isGroup.value &&
+    msg.group_id === props.chat.id
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.sender_id,
+      senderName: msg.sender_name || '', // 这里要保证 senderName 有值
+      type: msg.msg_type,
+      content: msg.content,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+function handleGroupImage(msg) {
+  if (
+    isGroup.value &&
+    msg.group_id === props.chat.id
+  ) {
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.sender_id,
+      type: msg.msg_type,
+      content: msg.image, // 或者 msg.extra?.image_id
+      filename: msg.filename,
+      imageId: msg.image_id,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+// 发送消息
+function sendGroupText() {
+  const text = inputText.value.trim()
+  if (!text || !props.chat) return
+  socket.sendGroupMessage({
+    from: props.currentUser.id,
+    group_id: props.chat.id,
+    content: text
+  })
+  // 本地回显
+  messages.value.push({
+    id: Date.now(),
+    senderId: props.currentUser.id,
+    type: 'text',
+    content: text,
+    time: Date.now()
+  })
+  inputText.value = ''
+  nextTick(scrollToBottom)
+}
+
+// 发送图片
+function sendGroupImage(file) {
+  const reader = new FileReader()
+  reader.onload = function() {
+    socket.sendGroupImage({
+      from: props.currentUser.id,
+      group_id: props.chat.id,
+      image: reader.result,
+      filename: file.name,
+      extra: {} // 可选图片尺寸
+    })
+    messages.value.push({
+      id: Date.now(),
+      senderId: props.currentUser.id,
+      type: 'image',
+      content: reader.result,
+      filename: file.name,
+      time: Date.now()
+    })
+  }
+  reader.readAsDataURL(file)
+}
 </script>
 
 <template>
@@ -272,7 +416,7 @@ function autoResize(e) {
         <!-- 头像（自己发的显示在右侧/群聊） -->
         <div v-if="isGroup && msg.senderId === props.currentUser.id" class="ml-2 flex-shrink-0">
           <div class="w-8 h-8 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center font-bold text-base">
-            {{ msg.senderName[0] }}
+            {{ (msg.senderName && msg.senderName.length > 0) ? msg.senderName[0] : '' }}
           </div>
         </div>
       </div>
