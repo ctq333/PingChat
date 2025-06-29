@@ -1,14 +1,15 @@
-// 简易版统一 WebSocket 工具
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:5000/ws' // 或你的实际 ws 地址
+// utils/ws.js
+
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:5000/ws'
 
 let socket = null
 let reconnectTimer = null
 let listeners = []
 
-function connect(token, userId) {
+function connect(userId) {
   if (socket) return
-  // 最常见的：token 作为 query 参数传到后端做鉴权
-  const wsUrl = `${WS_URL}?token=${token}&user_id=${userId}`
+  // 只带 user_id，不带 token
+  const wsUrl = `${WS_URL}?user_id=${userId}`
   socket = new WebSocket(wsUrl)
 
   socket.onopen = () => {
@@ -23,11 +24,9 @@ function connect(token, userId) {
     }
   }
   socket.onclose = () => {
-    console.warn('WebSocket 已断开，准备重连')
     socket = null
-    // 自动重连
     reconnectTimer = setTimeout(() => {
-      connect(token, userId)
+      connect(userId)
     }, 2000)
   }
   socket.onerror = (err) => {
@@ -38,22 +37,15 @@ function connect(token, userId) {
 function send(obj) {
   if (socket && socket.readyState === 1) {
     socket.send(JSON.stringify(obj))
-  } else {
-    console.warn('WebSocket 未连接，消息未发送')
   }
 }
 
-// 订阅新消息
 function onMessage(fn) {
   listeners.push(fn)
 }
-
-// 取消订阅
 function offMessage(fn) {
   listeners = listeners.filter(l => l !== fn)
 }
-
-// 主动关闭
 function close() {
   if (socket) {
     socket.close()
