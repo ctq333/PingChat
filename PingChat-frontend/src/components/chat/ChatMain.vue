@@ -270,6 +270,14 @@ function handleImageChange(e) {
   const file = e.target.files[0]
   if (!file || !props.chat) return
 
+  // 👉 判断图片大小（1MB = 1024 * 1024）
+  const maxSize = 1 * 1024 * 1024 // 1MB
+  if (file.size > maxSize) {
+    alert('图片大小不能超过 1MB')
+    e.target.value = ''
+    return
+  }
+
   if (props.chat.type === 'group') {
     sendGroupImage(file)
   } else {
@@ -302,6 +310,7 @@ function handleImageChange(e) {
 
   e.target.value = ''
 }
+
 
 
 // 输入框自适应高度
@@ -453,7 +462,7 @@ function sendGroupImage(file) {
               :src="msg.content"
               class="w-40 max-w-xs rounded-xl cursor-pointer transition hover:scale-105"
               @click="openImage(msg.content)"
-              alt="图片消息"
+              alt="图片丢失"
             />
           </template>
         </div>

@@ -38,3 +38,24 @@ export async function getImageFromDB(filename: string): Promise<string | null> {
   const record = await db.get(STORE_NAME, filename)
   return record?.data || null
 }
+
+export async function clearImageDB() {
+  // 关闭已有连接
+  if (dbPromise) {
+    const db = await dbPromise
+    db.close()
+    dbPromise = null
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB_NAME)
+    req.onsuccess = () => resolve()
+    req.onerror = (e) => reject(e)
+    req.onblocked = () => {
+      console.warn('数据库删除被阻塞')
+      reject(new Error('数据库删除被阻塞'))
+    }
+  })
+}
+
+
