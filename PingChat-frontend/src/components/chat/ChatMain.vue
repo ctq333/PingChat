@@ -26,6 +26,7 @@ const props = defineProps({
 const messages = ref([])
 const loading = ref(false)
 const username = ref(null)
+const showAddUserDialog = ref(false)
 
 // 导出聊天记录为 HTML 文件，含图片
 async function exportChatHistory() {
@@ -63,7 +64,35 @@ async function exportChatHistory() {
       alert('导出失败：' + resp.data.message)
       return
     }
-    const messages = resp.data.data
+    let messages = resp.data.data
+
+    // ----------- 关键：处理图片消息 -----------
+    // ----------- 补全每个图片消息的 content 为 base64 -----------
+    messages = await Promise.all(messages.map(async msg => {
+      // 兼容 type/msg_type
+      const isImage = msg.type === 'image' || msg.msg_type === 'image'
+      if (isImage) {
+        // 1. 已经是 base64
+        if (msg.content && msg.content.startsWith('data:image')) {
+          return msg
+        }
+        // 2. 有 filename，尝试从indexedDB查base64
+        if (msg.filename) {
+          const base64 = await getImageFromDB(msg.filename)
+          if (base64 && base64.startsWith('data:image')) {
+            return { ...msg, content: base64 }
+          } else {
+            return { ...msg, content: '' } // 让下游变成“图片丢失”
+          }
+        }
+        // 3. fallback：直接把内容清空（给下游生成“图片丢失”）
+        return { ...msg, content: '' }
+      }
+      // 非图片消息直接返回
+      return msg
+    }))
+    // ----------- 补全结束 -----------
+    // ----------- 关键处理结束 -----------
 
     // 生成 HTML 内容
     const htmlContent = generateHtml(messages, type)
@@ -77,45 +106,187 @@ async function exportChatHistory() {
 
 // 生成聊天HTML内容，messages是从接口拿到的数组
 function generateHtml(messages, chatType) {
-  // 简单渲染html，支持文本和图片（图片base64或者URL）
-  // 可按需美化样式
+  // 现代化 CSS 样式
   const style = `
     <style>
-      body { font-family: Arial, sans-serif; padding: 10px; background: #f5f5f5; }
-      .chat-container { max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
-      .message { margin-bottom: 15px; }
-      .sender { font-weight: bold; margin-bottom: 4px; }
-      .time { font-size: 0.8em; color: #888; margin-left: 8px; }
-      .text { white-space: pre-wrap; font-size: 1em; }
-      .image { max-width: 300px; border-radius: 6px; box-shadow: 0 0 5px rgba(0,0,0,0.15); }
+      :root {
+        --primary: #2563eb;
+        --primary-light: #eef4ff;
+        --bg: #f6f8fb;
+        --bubble-user: #2563eb;
+        --bubble-user-text: #fff;
+        --bubble-other: #f3f4f6;
+        --bubble-other-text: #222;
+        --avatar-bg: #e0e7ff;
+      }
+
+      html, body {
+        margin: 0; padding: 0;
+        background: var(--bg);
+        font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+        color: #222;
+      }
+      .chat-root {
+        min-height: 100vh;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0 0 40px 0;
+      }
+      .chat-container {
+        width: 100%;
+        max-width: 720px;
+        background: #fff;
+        margin: 40px auto 0 auto;
+        border-radius: 18px;
+        box-shadow: 0 4px 32px rgba(0,0,0,0.08);
+        padding: 32px 0 0 0;
+        overflow: hidden;
+      }
+      .chat-header {
+        border-bottom: 1px solid #f3f4f6;
+        padding: 0 32px 18px 32px;
+        margin-bottom: 12px;
+      }
+      .chat-header h2 {
+        margin: 0 0 4px 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #222;
+      }
+      .chat-header .type {
+        font-size: 1rem;
+        color: #888;
+      }
+      .chat-messages {
+        padding: 0 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .msg-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+      }
+      .msg-row.user {
+        flex-direction: row-reverse;
+      }
+      .msg-avatar {
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        background: var(--avatar-bg);
+        color: var(--primary);
+        font-weight: 700;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.07);
+      }
+      .msg-content {
+        max-width: 68vw;
+        min-width: 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .msg-row.user .msg-content {
+        align-items: flex-end;
+      }
+      .msg-meta {
+        font-size: 0.83em;
+        color: #949fb2;
+        margin-bottom: 3px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .msg-bubble {
+        border-radius: 16px 16px 16px 3px;
+        padding: 11px 17px;
+        font-size: 1.05em;
+        line-height: 1.6;
+        word-break: break-word;
+        background: var(--bubble-other);
+        color: var(--bubble-other-text);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        margin-bottom: 2px;
+        transition: background .2s;
+      }
+      .msg-row.user .msg-bubble {
+        background: var(--bubble-user);
+        color: var(--bubble-user-text);
+        border-radius: 16px 16px 3px 16px;
+      }
+      .msg-bubble img {
+        max-width: 260px;
+        max-height: 320px;
+        border-radius: 10px;
+        box-shadow: 0 1px 8px rgba(0,0,0,0.10);
+        display: block;
+      }
+      @media (max-width: 640px) {
+        .chat-container { border-radius: 0; margin: 0; box-shadow: none; }
+        .chat-header, .chat-messages { padding: 0 10px; }
+        .chat-messages { gap: 16px; }
+        .msg-content { max-width: 88vw; }
+      }
     </style>
   `
 
+  // 判断自己和他人（导出记录时可能没有当前用户信息，这里全部用“user”或“other”交错美化）
+  let lastSenderId = null
+
+  // 渲染消息
   const messageHtml = messages.map(msg => {
-    const timeStr = new Date(msg.send_time).toLocaleString()
-    const senderName = msg.sender_name || '未知'
-    if (msg.msg_type === 'text') {
-      return `
-      <div class="message">
-        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
-        <div class="text">${escapeHtml(msg.content)}</div>
-      </div>`
-    } else if (msg.msg_type === 'image') {
-      let imgSrc = msg.content
-      // 如果是base64格式的直接用，如果是文件名或URL，需要额外处理（此处默认content是base64或者可访问URL）
-      return `
-      <div class="message">
-        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
-        <img class="image" src="${imgSrc}" alt="图片" />
-      </div>`
+    const isUser = msg.senderId === undefined
+      ? false
+      : (!lastSenderId || msg.senderId === lastSenderId)
+        ? false
+        : true // 简单交错
+    lastSenderId = msg.senderId
+
+    // 头像首字母
+    const avatar = msg.senderName?.[0] || "U"
+    // 时间
+    const timeStr = msg.time
+      ? new Date(msg.time).toLocaleString()
+      : (msg.send_time ? new Date(msg.send_time).toLocaleString() : '')
+    // 名字
+    const senderName = msg.senderName || msg.sender_name || '未知'
+    // 气泡内容
+    let bubble
+    if (msg.type === 'image' || msg.msg_type === 'image') {
+      if (msg.content && msg.content.startsWith('data:image')) {
+        bubble = `<span class="msg-bubble"><img src="${msg.content}" alt="图片" /></span>`
+      } else {
+        bubble = `<span class="msg-bubble" style="color:#888;font-style:italic;">[图片丢失]</span>`
+      }
     } else {
-      // 其他类型，简单展示文本
-      return `
-      <div class="message">
-        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
-        <div class="text">[不支持的消息类型]</div>
-      </div>`
+      bubble = `<span class="msg-bubble">${escapeHtml(msg.content || msg.text)}</span>`
     }
+
+    // 判断是否右侧气泡
+    const isRight = msg.senderId === undefined
+      ? false
+      : props && props.currentUser && msg.senderId === props.currentUser.id
+
+    return `
+      <div class="msg-row${isRight ? ' user' : ''}">
+        <div class="msg-avatar">${avatar}</div>
+        <div class="msg-content">
+          <div class="msg-meta">
+            <span class="name">${escapeHtml(senderName)}</span>
+            <span class="time">${timeStr}</span>
+          </div>
+          ${bubble}
+        </div>
+      </div>
+    `
   }).join('\n')
 
   return `
@@ -127,23 +298,30 @@ function generateHtml(messages, chatType) {
     ${style}
   </head>
   <body>
-    <div class="chat-container">
-      <h2>聊天记录（${chatType === 'group' ? '群聊' : '单聊'}）</h2>
-      ${messageHtml}
+    <div class="chat-root">
+      <div class="chat-container">
+        <div class="chat-header">
+          <h2>聊天记录导出</h2>
+          <div class="type">${chatType === 'group' ? '群聊' : '单聊'} · 导出时间：${new Date().toLocaleString()}</div>
+        </div>
+        <div class="chat-messages">
+          ${messageHtml}
+        </div>
+      </div>
     </div>
   </body>
   </html>
   `
 }
 
-// 转义html特殊字符，防止内容中有标签破坏结构
+// 转义函数
 function escapeHtml(text) {
   if (!text) return ''
   return text.replace(/&/g, '&amp;')
-             .replace(/</g, '&lt;')
-             .replace(/>/g, '&gt;')
-             .replace(/"/g, '&quot;')
-             .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
 }
 
 // 触发浏览器下载html文件
@@ -610,7 +788,9 @@ async function handleGroupImage(msg) {
 // 发送图片
 function sendGroupImage(file) {
   const reader = new FileReader()
-  reader.onload = function () {
+  reader.onload = async function () {
+    const base64Data = typeof reader.result === 'string' ? reader.result : ''
+    await saveImageToDB(file.name, base64Data)
     socket.sendGroupImage({
       from: props.currentUser.id,
       group_id: props.chat.id,
@@ -639,37 +819,39 @@ function sendGroupImage(file) {
     <!-- Header -->
     <div class="flex items-center px-4 h-16 border-b border-gray-200 bg-white/80">
       <template v-if="isGroup">
-        <div class="flex items-center flex-1 min-w-0">
-          <span class="text-lg font-bold text-gray-800 truncate">
-            {{ props.chat?.name }}
-          </span>
-        </div>
-        <button
-          class="ml-4 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-sm font-semibold shadow transition-all duration-150"
-          @click="openGroupManageDialog"
-        >
-          <Icon name="material-symbols:manage-accounts" class="w-5 h-5 mr-2" />群管理
-        </button>
-        <button
-          class="ml-2 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-200 to-blue-400 hover:from-blue-300 hover:to-blue-500 text-blue-900 text-sm font-semibold shadow transition-all duration-150"
-          @click="exportChatHistory"
-        >
-          <Icon name="material-symbols:download" class="w-5 h-5 mr-2" />导出记录
-        </button>
+      <div class="flex items-center flex-1 min-w-0">
+        <span class="text-lg font-bold text-gray-800 truncate">
+          {{ props.chat?.name }}
+        </span>
+      </div>
+      <button
+        class="ml-4 flex items-center px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-all duration-150 bg-transparent font-medium"
+        @click="openGroupManageDialog"
+      >
+        <UIcon name="material-symbols:group" class="size-5 mr-2" />
+        群管理
+      </button>
+      <button
+        class="ml-2 flex items-center px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-all duration-150 bg-transparent font-medium"
+        @click="exportChatHistory"
+      >
+        <UIcon name="material-symbols:file-export-rounded" class="size-5 mr-2" />
+        导出记录
+      </button>
+    </template>
 
-      </template>
-
-      <template v-else>
-        <div class="flex items-center flex-1 min-w-0">
-          <span class="text-lg font-bold text-gray-800 truncate">{{ props.chat?.name }}</span>
-        </div>
-        <button
-          class="ml-4 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-sm font-semibold shadow transition-all duration-150"
-          @click="exportChatHistory"
-        >
-          <Icon name="material-symbols:download" class="w-5 h-5 mr-2" />导出记录
-        </button>
-      </template>
+    <template v-else>
+      <div class="flex items-center flex-1 min-w-0">
+        <span class="text-lg font-bold text-gray-800 truncate">{{ props.chat?.name }}</span>
+      </div>
+      <button
+        class="ml-4 flex items-center px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-all duration-150 bg-transparent font-medium"
+        @click="exportChatHistory"
+      >
+        <UIcon name="material-symbols:file-export-rounded" class="size-5 mr-2" />
+        导出记录
+      </button>
+    </template>
     </div>
 
 
