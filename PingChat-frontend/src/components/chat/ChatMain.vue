@@ -738,7 +738,7 @@ function sendGroupImage(file) {
             </template>
 
             <!-- 操作按钮 -->
-            <div class="absolute -bottom-10 right-0 flex space-x-1">
+            <div class="absolute -bottom-8 right-0 flex space-x-1">
               <button
                 @click.stop="exportMessage(msg)"
                 class="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-blue-600 transition"
