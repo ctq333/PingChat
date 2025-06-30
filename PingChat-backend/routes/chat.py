@@ -37,6 +37,7 @@ def get_history():
             'content': msg.content,
             'send_time': msg.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
             'avatar_url': sender.avatar_url if sender else '',
+            'extra': msg.extra or {},
         }
 
     return jsonify({

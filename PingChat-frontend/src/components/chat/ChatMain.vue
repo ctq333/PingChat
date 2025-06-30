@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import request from '@/utils/request'
-import socket from '@/utils/socket' // 注意引入！
+import socket from '@/utils/socket' 
+import { saveImageToDB, getImageFromDB } from '@/utils/userChatStorage'
+
 
 import IconSend from '~icons/material-symbols/send'
 import IconImage from '~icons/material-symbols/image'
@@ -24,6 +26,8 @@ onMounted(() => {
   socket.onSingleMessage(handleSingleMessage)
   socket.onGroupMessage(handleGroupMessage)
   socket.onGroupImage(handleGroupImage)
+  socket.onSingleImage(handleSingleImage)
+
 })
 onUnmounted(() => {
   socket.offSingleMessage(handleSingleMessage)
@@ -41,18 +45,10 @@ function handleSingleMessage(msg) {
       (msg.from === props.chat.id && msg.to === props.currentUser.id)
     )
   ) {
-    // 获取发送者名称
-    let senderName = ''
-    if (msg.from === props.currentUser.id) {
-      senderName = props.currentUser.name || props.currentUser.username || ''
-    } else {
-      senderName = props.chat.name || ''
-    }
-
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.from,
-      senderName: senderName,
+      senderName: '', // 可选补充
       type: msg.msg_type,
       content: msg.content,
       time: msg.send_time
@@ -60,6 +56,36 @@ function handleSingleMessage(msg) {
     nextTick(scrollToBottom)
   }
 }
+
+// 收到单聊图片消息
+async function handleSingleImage(msg) {
+  if (
+    props.chat &&
+    (
+      (msg.from === props.currentUser.id && msg.to === props.chat.id) ||
+      (msg.from === props.chat.id && msg.to === props.currentUser.id)
+    )
+  ) {
+    // 优先从 IndexedDB 取图片数据
+    let imageData = null
+    if (msg.filename) {
+      imageData = await getImageFromDB(msg.filename)
+    }
+
+    messages.value.push({
+      id: msg.id || Date.now(),
+      senderId: msg.from,
+      senderName: '', 
+      type: 'image',
+      content: imageData || msg.image || '[图片丢失]',
+      filename: msg.filename,
+      time: msg.send_time
+    })
+    nextTick(scrollToBottom)
+  }
+}
+
+
 
 // 拉历史消息
 async function fetchMessages(chat) {
@@ -77,37 +103,48 @@ async function fetchMessages(chat) {
     loading.value = false
     return
   }
+
   try {
     const resp = await request.get(url, { params })
-    messages.value = (resp.data.data.messages || []).map(msg => {
-      // 统一结构适配
+
+    const rawMessages = resp.data.data.messages || []
+
+    // 异步组装带图片内容的消息
+    const resolvedMessages = await Promise.all(rawMessages.map(async (msg, idx) => {
       const base = {
         id: msg.id,
         senderId: msg.sender_id,
-        senderName: msg.sender_name || '', // 可选
+        senderName: msg.sender_name || '',
         type: msg.msg_type,
         content: msg.content,
         time: msg.send_time,
         avatarUrl: msg.avatar_url || ''
       }
-      // 群聊图片消息额外字段
-      if (msg.msg_type === 'image' && msg.extra) {
+
+      if (msg.msg_type === 'image' && msg.extra?.filename) {
+        const imageData = await getImageFromDB(msg.extra.filename)
         return {
           ...base,
-          imageId: msg.extra.image_id,
+          type: 'image',
+          content: imageData || '[图片已丢失]',
           filename: msg.extra.filename,
-          extra: msg.extra
+          imageId: msg.extra.image_id
         }
       }
+
       return base
-    })
+    }))
+
+    messages.value = resolvedMessages
     nextTick(scrollToBottom)
   } catch (e) {
     messages.value = []
   } finally {
     loading.value = false
   }
+
 }
+
 
 // 监听切换聊天对象时拉历史
 watch(() => props.chat, (chat) => {
@@ -140,7 +177,6 @@ function sendText() {
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
-    senderName: props.currentUser.name || props.currentUser.username || '',
     type: 'text',
     content: text,
     time: Date.now()
@@ -227,57 +263,39 @@ function closeImage() {
 // 发送图片
 function handleImageChange(e) {
   const file = e.target.files[0]
-  if (!file) return
+  if (!file || !props.chat) return
 
-  if (props.chat.type === 'group') {
-    // 群聊图片
-    const reader = new FileReader()
-    reader.onload = function() {
-      socket.sendGroupImage({
-        from: props.currentUser.id,
-        group_id: props.chat.id,
-        image: reader.result,
-        filename: file.name,
-        extra: {} // 可补充 width/height
-      })
-      // 本地回显
-      messages.value.push({
-        id: Date.now(),
-        senderId: props.currentUser.id,
-        senderName: props.currentUser.name || props.currentUser.username || '',
-        type: 'image',
-        content: reader.result,
-        filename: file.name,
-        time: Date.now()
-      })
-    }
-    reader.readAsDataURL(file)
-  } else {
-    // 单聊图片
-    const reader = new FileReader()
-    reader.onload = function() {
-      socket.sendSingleImage({
-        from: props.currentUser.id,
-        to: props.chat.id,
-        image: reader.result,
-        filename: file.name,
-        extra: {} // 可补充 width/height
-      })
-      messages.value.push({
-        id: Date.now(),
-        senderId: props.currentUser.id,
-        senderName: props.currentUser.name || props.currentUser.username || '',
-        type: 'image',
-        content: reader.result,
-        filename: file.name,
-        time: Date.now()
-      })
-    }
-    reader.readAsDataURL(file)
+  const reader = new FileReader()
+  reader.onload = async () => {
+    const base64Data = typeof reader.result === 'string' ? reader.result : ''
+
+    // 保存图片数据到 IndexedDB
+    await saveImageToDB(file.name, base64Data)
+
+    // 发送消息到后端/对方，携带文件名，图片数据可选是否传
+    socket.sendSingleImage({
+      from: props.currentUser.id,
+      to: props.chat.id,
+      image: base64Data,
+      filename: file.name,
+      extra: {}
+    })
+
+    // 本地回显消息（带 base64）
+    messages.value.push({
+      id: Date.now(),
+      senderId: props.currentUser.id,
+      type: 'image',
+      content: base64Data,
+      filename: file.name,
+      time: Date.now()
+    })
   }
+  reader.readAsDataURL(file)
   e.target.value = ''
   nextTick(scrollToBottom)
 }
+
 
 // 输入框自适应高度
 function autoResize(e) {
@@ -318,7 +336,6 @@ function handleGroupImage(msg) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.sender_id,
-      senderName: msg.sender_name || '',
       type: msg.msg_type,
       content: msg.image, // 或者 msg.extra?.image_id
       filename: msg.filename,
@@ -341,7 +358,6 @@ function sendGroupText() {
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
-    senderName: props.currentUser.name || props.currentUser.username || '',
     type: 'text',
     content: text,
     time: Date.now()
@@ -364,7 +380,6 @@ function sendGroupImage(file) {
     messages.value.push({
       id: Date.now(),
       senderId: props.currentUser.id,
-      senderName: props.currentUser.name || props.currentUser.username || '',
       type: 'image',
       content: reader.result,
       filename: file.name,
@@ -379,10 +394,15 @@ function sendGroupImage(file) {
   <div class="flex flex-col h-full w-full bg-gray-50">
     <!-- header -->
     <div class="flex items-center px-4 h-16 border-b border-gray-200 bg-white/80">
-      <div class="text-lg font-bold text-gray-800">
+      <div v-if="isGroup" class="flex items-center space-x-2">
+        <div v-for="m in groupMembers" :key="m.id" class="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
+          {{ m.name[0] }}
+        </div>
+      </div>
+      <div v-else class="text-lg font-bold text-gray-800">
         {{ props.chat?.name }}
       </div>
-      <div v-if="isGroup" class="ml-3 text-gray-500 text-base font-normal">群聊</div>
+      <div class="ml-3 text-gray-500 text-base font-normal">{{ props.chat?.name }}</div>
     </div>
 
     <!-- 聊天消息区 -->
