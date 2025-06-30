@@ -62,8 +62,14 @@ function handleSingleMessage(msg) {
     })
     nextTick(scrollToBottom)
   }
-  // 无论是否当前窗口，都向父组件派发新消息事件
-  emit('new-message', { chatId: msg.from === props.currentUser.id ? msg.to : msg.from, chatType: 'user' })
+  // 无论是否当前窗口，都向父组件派发新消息事件，带内容
+  emit('new-message', {
+    chatId: msg.from === props.currentUser.id ? msg.to : msg.from,
+    chatType: 'user',
+    content: msg.content,
+    msgType: msg.msg_type,
+    senderName: ''
+  })
 }
 
 // 收到单聊图片消息
@@ -375,8 +381,14 @@ function handleGroupMessage(msg) {
     })
     nextTick(scrollToBottom)
   }
-  // 派发新群聊消息事件
-  emit('new-message', { chatId: msg.group_id, chatType: 'group' })
+  // 派发新群聊消息事件，带内容
+  emit('new-message', {
+    chatId: msg.group_id,
+    chatType: 'group',
+    content: msg.content,
+    msgType: msg.msg_type,
+    senderName: msg.sender_name || ''
+  })
 }
 async function handleGroupImage(msg) {
   if (

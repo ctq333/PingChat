@@ -57,12 +57,24 @@ function handleSelectChat(chat) {
   }
 }
 
-// 处理新消息事件，更新未读数
-function handleNewMessage({ chatId, chatType }) {
+// 处理新消息事件，更新未读数和会话列表的lastMsg
+function handleNewMessage({ chatId, chatType, content, msgType, senderName }) {
   // 如果不是当前激活会话，未读数+1
   if (!activeChat.value || activeChat.value.id !== chatId || activeChat.value.type !== chatType) {
     const key = `${chatId}-${chatType}`
     unreadMap.value[key] = (unreadMap.value[key] || 0) + 1
+  }
+  // 更新sidebar的lastMsg
+  const idx = chatList.value.findIndex(c => c.id === chatId && c.type === chatType)
+  if (idx !== -1) {
+    // 优先显示文本内容，图片显示[图片]
+    chatList.value[idx].lastMsg = msgType === 'image' ? '[图片]' : content
+    // 可选：显示发送者
+    if (chatType === 'group' && senderName) {
+      chatList.value[idx].lastMsg = `${senderName}: ${chatList.value[idx].lastMsg}`
+    }
+    // 更新时间
+    chatList.value[idx].lastMsgTime = Date.now()
   }
 }
 
