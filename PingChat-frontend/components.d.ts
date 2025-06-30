@@ -25,6 +25,7 @@ declare module 'vue' {
     GroupInviteDialog: typeof import('./src/components/group/GroupInviteDialog.vue')['default']
     GroupList: typeof import('./src/components/group/GroupList.vue')['default']
     GroupMemberList: typeof import('./src/components/group/GroupMemberList.vue')['default']
+    ImageMessage: typeof import('./src/components/chat/ImageMessage.vue')['default']
     ImagePreview: typeof import('./src/components/chat/ImagePreview.vue')['default']
     LoadingSpinner: typeof import('./src/components/common/LoadingSpinner.vue')['default']
     MessageItem: typeof import('./src/components/chat/MessageItem.vue')['default']
