@@ -238,136 +238,28 @@ const isGroup = computed(() => props.chat?.type === 'group')
 
 
 
-// 群成员管理弹窗控制
-const showGroupManageDialog = ref(false)
-// function openGroupManageDialog() {  // <-- 删除多余的声明
-//   showGroupManageDialog.value = true
-// }
 
+import GroupManageDialog from '@/components/group/GroupManageDialog.vue'
+const showGroupManageDialog = ref(false)
+function openGroupManageDialog() {
+  showGroupManageDialog.value = true
+}
 function closeGroupManageDialog() {
   showGroupManageDialog.value = false
 }
 
-// 群成员列表
-const groupMembers = ref([])
-// 可添加的用户列表
-const addableUsers = ref([])
-const showAddUserDialog = ref(false)
-
-// 查询群成员
-async function fetchGroupMembers(chatId) {
-  const gid = chatId || props.chat?.id
-  if (!gid) return
-  // 需要后端接口：GET /api/group/members?group_id=xxx
-  // 返回格式建议：[{id, name}]
-  const resp = await request.get('/api/group/members', { params: { group_id: gid } })
-  groupMembers.value = resp.data.data || []
-}
-
-// 查询可添加用户
-async function fetchAddableUsers() {
-  if (!props.chat?.id) return
-  // 需要后端接口：GET /api/group/addable_users?group_id=xxx
-  // 返回格式建议：[{id, name}]
-  const resp = await request.get('/api/group/addable_users', { params: { group_id: props.chat.id } })
-  addableUsers.value = resp.data.data || []
-}
-
-// function openGroupManageDialog() {
-//   showGroupManageDialog.value = true
-//   fetchGroupMembers()
-// }
-// function closeGroupManageDialog() {
-//   showGroupManageDialog.value = false
-// }
-
-// 打开添加成员弹窗
-async function openAddUserDialog() {
-  await fetchAddableUsers()
-  showAddUserDialog.value = true
-}
-function closeAddUserDialog() {
-  showAddUserDialog.value = false
-}
-
-// 添加成员（本地先移除，接口成功后再刷新，提升体验）
-async function addGroupMember(userId) {
-  // 本地先移除，提升响应
-  addableUsers.value = addableUsers.value.filter(u => u.id !== userId)
-  await request.post('/api/group/add_member', {
-    group_id: props.chat.id,
-    user_id: userId
-  })
-  // 只刷新群成员列表，不立即关闭弹窗
-  fetchGroupMembers()
-}
-
-// 删除成员（本地先移除，接口成功后再刷新，提升体验）
-async function removeGroupMember(userId) {
-  groupMembers.value = groupMembers.value.filter(m => m.id !== userId)
-  await request.post('/api/group/remove_member', {
-    group_id: props.chat.id,
-    user_id: userId
-  })
-  // 删除后可选刷新addableUsers，避免下次切换tab时数据不一致
-}
-
-
-// tab切换时立即加载数据，避免切换卡顿
-function switchManageTab(tab) {
-  manageTab.value = tab
-  if (tab === 'remove') {
-    // 只在切换到删除tab时刷新群成员
-    fetchGroupMembers()
-  } else {
-    // 只在切换到添加tab时刷新可添加用户
-    fetchAddableUsers()
-  }
-}
-
-
-// 群管理弹窗tab
-const manageTab = ref('remove')
-
-// 打开管理弹窗时刷新群成员并默认选中删除成员tab
-function openGroupManageDialog() {
-  showGroupManageDialog.value = true
-  manageTab.value = 'remove'
-  fetchGroupMembers()
-}
-
-// 监听props.chat变化，拉取历史消息，并若为群聊则自动拉取群成员（用于显示人数）
+// 监听props.chat变化，只拉取历史消息（群成员管理交给弹窗组件）
 watch(() => props.chat, (chat) => {
   if (chat) {
     fetchMessages(chat)
-    if (chat.type === 'group') {
-      fetchGroupMembers(chat.id)
-    }
   }
 }, { immediate: true })
 
-// 解散群聊弹窗控制
-const showDissolveDialog = ref(false)
-function openDissolveDialog() {
-  showDissolveDialog.value = true
-}
-function closeDissolveDialog() {
-  showDissolveDialog.value = false
-}
-// 解散群聊
 const emit = defineEmits(['group-dissolved'])
-async function dissolveGroup() {
-  if (!props.chat?.id) return
-  // 立即关闭弹窗，提升体验
-  showDissolveDialog.value = false
+function handleGroupDissolved() {
+  // 只负责向父组件冒泡事件，不再请求接口
+  emit('group-dissolved')
   showGroupManageDialog.value = false
-  // 先请求后端，成功后再通知父组件（确保 ChatView 的 handleGroupDissolved 只在后端成功时调用）
-  try {
-    await request.post('/api/group/dissolve', { group_id: props.chat.id })
-    emit('group-dissolved')
-  } catch (e) {
-    // 可选：全局错误提示
-  }
 }
 
 
@@ -555,7 +447,6 @@ function sendGroupImage(file) {
         <div class="flex items-center flex-1 min-w-0">
           <span class="text-lg font-bold text-gray-800 truncate">
             {{ props.chat?.name }}
-            <span class="ml-1 text-sm font-normal text-gray-500">({{ groupMembers.length }})</span>
           </span>
         </div>
         <button
@@ -570,67 +461,14 @@ function sendGroupImage(file) {
       </template>
     </div>
 
-    <!-- 群成员管理弹窗 -->
-    <div v-if="showGroupManageDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
-        <h2 class="text-lg font-bold mb-4">群成员管理</h2>
-        <div class="flex items-center mb-4">
-          <button
-            class="flex-1 py-2 rounded-l-lg text-sm font-semibold transition-all duration-150"
-            :class="manageTab === 'remove' ? 'bg-blue-500 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-            @click="switchManageTab('remove')"
-          >
-            删除成员
-          </button>
-          <button
-            class="flex-1 py-2 rounded-r-lg text-sm font-semibold transition-all duration-150"
-            :class="manageTab === 'add' ? 'bg-blue-500 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-            @click="switchManageTab('add')"
-          >
-            添加成员
-          </button>
-        </div>
-        <div v-if="manageTab === 'remove'">
-          <ul class="mb-4 max-h-60 overflow-y-auto">
-            <li v-for="m in groupMembers" :key="m.id" class="flex items-center justify-between py-2 border-b last:border-b-0">
-              <span>{{ m.name }}</span>
-              <button class="text-red-500 hover:underline text-sm" @click="removeGroupMember(m.id)">移除</button>
-            </li>
-          </ul>
-        </div>
-        <div v-else>
-          <ul class="mb-4 max-h-60 overflow-y-auto">
-            <li v-for="u in addableUsers" :key="u.id" class="flex items-center justify-between py-2 border-b last:border-b-0">
-              <span>{{ u.name }}</span>
-              <button class="text-blue-500 hover:underline text-sm" @click="addGroupMember(u.id)">添加</button>
-            </li>
-          </ul>
-        </div>
-
-        <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-700" @click="closeGroupManageDialog">
-          <IconClose class="w-6 h-6" />
-        </button>
-        <!-- 解散群聊按钮 -->
-        <button
-          class="w-full mt-2 py-2 rounded bg-red-500 hover:bg-red-600 text-white font-semibold transition"
-          @click="openDissolveDialog"
-        >
-          解散群聊
-        </button>
-
-        <!-- 解散群聊确认弹窗 -->
-        <div v-if="showDissolveDialog" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
-          <div class="bg-white rounded-lg shadow-lg w-full max-w-xs p-6 relative flex flex-col items-center">
-            <h3 class="text-lg font-bold mb-2 text-center">解散群聊</h3>
-            <p class="text-gray-700 text-sm mb-6 text-center">确定要解散该群聊吗？此操作不可恢复！</p>
-            <div class="flex w-full space-x-3">
-              <button class="flex-1 py-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold" @click="closeDissolveDialog">取消</button>
-              <button class="flex-1 py-2 rounded bg-red-500 hover:bg-red-600 text-white font-semibold" @click="dissolveGroup">确定</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 群成员管理弹窗（已分离为独立组件） -->
+    <GroupManageDialog
+      :show="showGroupManageDialog"
+      :chat="props.chat"
+      @close="closeGroupManageDialog"
+      @group-dissolved="handleGroupDissolved"
+      @member-changed="() => {}"
+    />
 
 
     <!-- 添加成员弹窗 -->

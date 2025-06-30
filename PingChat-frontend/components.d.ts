@@ -24,6 +24,7 @@ declare module 'vue' {
     GroupInfo: typeof import('./src/components/group/GroupInfo.vue')['default']
     GroupInviteDialog: typeof import('./src/components/group/GroupInviteDialog.vue')['default']
     GroupList: typeof import('./src/components/group/GroupList.vue')['default']
+    GroupManageDialog: typeof import('./src/components/group/GroupManageDialog.vue')['default']
     GroupMemberList: typeof import('./src/components/group/GroupMemberList.vue')['default']
     ImageMessage: typeof import('./src/components/chat/ImageMessage.vue')['default']
     ImagePreview: typeof import('./src/components/chat/ImagePreview.vue')['default']
