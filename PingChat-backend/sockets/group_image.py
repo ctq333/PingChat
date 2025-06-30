@@ -1,55 +1,59 @@
-# sockets/group_image.py
-
-from flask import request
+from .user_map import user_sid_map
 from extensions import db
 from models import Message, GroupMember
-from .user_map import user_sid_map
 from datetime import datetime
 
 def get_group_user_ids(group_id):
+    # 查询群成员 user_id，返回 list
     return [m.user_id for m in GroupMember.query.filter_by(group_id=group_id).all()]
 
 def register_group_image(socketio):
     @socketio.on('group_image')
     def handle_group_image(data):
-        group_id = data.get('group_id')
-        from_user = int(data.get('from'))
-        image_id = data.get('image_id')
-        filename = data.get('filename')
-        extra = data.get('extra') or {}
-        send_time = datetime.now()
+        """
+        data: {
+            from: user_id,
+            group_id: int,
+            image: base64字符串,
+            filename: str,
+            msg_type: 'image',
+            send_time: 时间戳或字符串,
+            extra: {width, height, ...}
+        }
+        """
+        # 字段校验
+        required_fields = ['from', 'group_id', 'image', 'filename', 'send_time']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            print(f"[group_image] 缺少字段: {', '.join(missing)}，收到的数据: {data}")
+            return
 
-        # 把 filename 存入 extra 中（如果还没加）
-        if filename:
-            extra['filename'] = filename
-        if image_id:
-            extra['image_id'] = image_id
-
-        # 存储消息到数据库
+        # 入库（只存元数据，不存base64图片）
         msg = Message(
-            sender_id=from_user,
-            group_id=group_id,
+            sender_id=data['from'],
+            receiver_id=None,
+            group_id=data['group_id'],
             msg_type='image',
-            content='[图片]',  # 内容可以写 placeholder
-            send_time=send_time,
-            extra=extra
+            content='[图片]',
+            send_time=datetime.fromtimestamp(data['send_time']/1000) if isinstance(data['send_time'], (int, float)) else datetime.utcnow(),
+            status='sent',
+            extra={
+                'filename': data.get('filename'),
+                'width': data.get('extra', {}).get('width'),
+                'height': data.get('extra', {}).get('height')
+            }
         )
         db.session.add(msg)
         db.session.commit()
+        data['id'] = msg.id
 
-        # 给群里所有人广播（除了自己）
+        # 群发（含base64图片）
+        group_id = data['group_id']
+        from_user = str(data['from'])
         user_ids = get_group_user_ids(group_id)
         for uid in user_ids:
+            uid = str(uid)
             if uid != from_user:
-                sid = user_sid_map.get(str(uid))
+                sid = user_sid_map.get(uid)
                 if sid:
-                    socketio.emit('group_image', {
-                        'id': msg.id,
-                        'group_id': group_id,
-                        'sender_id': from_user,
-                        'msg_type': 'image',
-                        'send_time': send_time.strftime("%Y-%m-%dT%H:%M:%S"),
-                        'filename': filename,
-                        'image_id': image_id,
-                        'extra': extra
-                    }, room=sid)
+                    socketio.emit('group_image', data, room=sid)

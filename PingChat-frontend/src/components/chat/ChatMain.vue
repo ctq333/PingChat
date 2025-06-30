@@ -270,35 +270,37 @@ function handleImageChange(e) {
   const file = e.target.files[0]
   if (!file || !props.chat) return
 
-  const reader = new FileReader()
-  reader.onload = async () => {
-    const base64Data = typeof reader.result === 'string' ? reader.result : ''
+  if (props.chat.type === 'group') {
+    sendGroupImage(file)
+  } else {
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64Data = typeof reader.result === 'string' ? reader.result : ''
 
-    // 保存图片数据到 IndexedDB
-    await saveImageToDB(file.name, base64Data)
+      await saveImageToDB(file.name, base64Data)
 
-    // 发送消息到后端/对方，携带文件名，图片数据可选是否传
-    socket.sendSingleImage({
-      from: props.currentUser.id,
-      to: props.chat.id,
-      image: base64Data,
-      filename: file.name,
-      extra: {}
-    })
+      socket.sendSingleImage({
+        from: props.currentUser.id,
+        to: props.chat.id,
+        image: base64Data,
+        filename: file.name,
+        extra: {}
+      })
 
-    // 本地回显消息（带 base64）
-    messages.value.push({
-      id: Date.now(),
-      senderId: props.currentUser.id,
-      type: 'image',
-      content: base64Data,
-      filename: file.name,
-      time: Date.now()
-    })
+      messages.value.push({
+        id: Date.now(),
+        senderId: props.currentUser.id,
+        type: 'image',
+        content: base64Data,
+        filename: file.name,
+        time: Date.now()
+      })
+      nextTick(scrollToBottom)
+    }
+    reader.readAsDataURL(file)
   }
-  reader.readAsDataURL(file)
+
   e.target.value = ''
-  nextTick(scrollToBottom)
 }
 
 
