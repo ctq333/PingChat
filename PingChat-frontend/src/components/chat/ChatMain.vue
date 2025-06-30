@@ -41,10 +41,18 @@ function handleSingleMessage(msg) {
       (msg.from === props.chat.id && msg.to === props.currentUser.id)
     )
   ) {
+    // 获取发送者名称
+    let senderName = ''
+    if (msg.from === props.currentUser.id) {
+      senderName = props.currentUser.name || props.currentUser.username || ''
+    } else {
+      senderName = props.chat.name || ''
+    }
+
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.from,
-      senderName: '', // 可选补充
+      senderName: senderName,
       type: msg.msg_type,
       content: msg.content,
       time: msg.send_time
@@ -132,6 +140,7 @@ function sendText() {
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
+    senderName: props.currentUser.name || props.currentUser.username || '',
     type: 'text',
     content: text,
     time: Date.now()
@@ -235,6 +244,7 @@ function handleImageChange(e) {
       messages.value.push({
         id: Date.now(),
         senderId: props.currentUser.id,
+        senderName: props.currentUser.name || props.currentUser.username || '',
         type: 'image',
         content: reader.result,
         filename: file.name,
@@ -256,6 +266,7 @@ function handleImageChange(e) {
       messages.value.push({
         id: Date.now(),
         senderId: props.currentUser.id,
+        senderName: props.currentUser.name || props.currentUser.username || '',
         type: 'image',
         content: reader.result,
         filename: file.name,
@@ -307,6 +318,7 @@ function handleGroupImage(msg) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.sender_id,
+      senderName: msg.sender_name || '',
       type: msg.msg_type,
       content: msg.image, // 或者 msg.extra?.image_id
       filename: msg.filename,
@@ -329,6 +341,7 @@ function sendGroupText() {
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
+    senderName: props.currentUser.name || props.currentUser.username || '',
     type: 'text',
     content: text,
     time: Date.now()
@@ -351,6 +364,7 @@ function sendGroupImage(file) {
     messages.value.push({
       id: Date.now(),
       senderId: props.currentUser.id,
+      senderName: props.currentUser.name || props.currentUser.username || '',
       type: 'image',
       content: reader.result,
       filename: file.name,
@@ -365,15 +379,10 @@ function sendGroupImage(file) {
   <div class="flex flex-col h-full w-full bg-gray-50">
     <!-- header -->
     <div class="flex items-center px-4 h-16 border-b border-gray-200 bg-white/80">
-      <div v-if="isGroup" class="flex items-center space-x-2">
-        <div v-for="m in groupMembers" :key="m.id" class="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
-          {{ m.name[0] }}
-        </div>
-      </div>
-      <div v-else class="text-lg font-bold text-gray-800">
+      <div class="text-lg font-bold text-gray-800">
         {{ props.chat?.name }}
       </div>
-      <div class="ml-3 text-gray-500 text-base font-normal">{{ props.chat?.name }}</div>
+      <div v-if="isGroup" class="ml-3 text-gray-500 text-base font-normal">群聊</div>
     </div>
 
     <!-- 聊天消息区 -->

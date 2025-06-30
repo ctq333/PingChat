@@ -53,27 +53,38 @@ def get_group_history():
     group_id = request.args.get('group_id', type=int)
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 30, type=int)
+
     if not group_id:
         return jsonify({'code': 400, 'message': '参数缺失'}), 400
-    query = Message.query.filter(
+
+    # 使用 join 关联 Message 和 User 表，获取 sender 的 username
+    query = db.session.query(Message, User.username.label('sender_username')).join(
+        User, Message.sender_id == User.id
+    ).filter(
         Message.group_id == group_id
     ).order_by(Message.send_time.asc())
+
     total = query.count()
-    messages = query.offset((page-1)*page_size).limit(page_size).all()
-    def msg_to_dict(msg):
+    results = query.offset((page-1)*page_size).limit(page_size).all()
+
+    def msg_to_dict(msg_result):
+        message = msg_result[0]  # Message 对象
+        sender_username = msg_result[1]  # User.username
         return {
-            'id': msg.id,
-            'sender_id': msg.sender_id,
-            'msg_type': msg.msg_type,
-            'content': msg.content,
-            'send_time': msg.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
-            'extra': msg.extra or {},
+            'id': message.id,
+            'sender_id': message.sender_id,
+            'sender_name': sender_username,  # 用 User.username 替换原来的 sender_name
+            'msg_type': message.msg_type,
+            'content': message.content,
+            'send_time': message.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
+            'extra': message.extra or {},
         }
+
     return jsonify({
         'code': 200,
         'message': 'OK',
         'data': {
-            'messages': [msg_to_dict(m) for m in messages],
+            'messages': [msg_to_dict(result) for result in results],
             'total': total
         }
     })
