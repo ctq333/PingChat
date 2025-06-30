@@ -37,11 +37,13 @@ def create_app():
     from routes.user import bp as user_bp
     from routes.group import bp as group_bp
     from routes.chat import bp as chat_bp
+    from routes.message import bp as message_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_bp, url_prefix='/api/user')
     app.register_blueprint(group_bp, url_prefix='/api/group')
     app.register_blueprint(chat_bp, url_prefix='/api/chat')
+    app.register_blueprint(message_bp, url_prefix='/api/message')
 
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):

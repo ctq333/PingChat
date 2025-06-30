@@ -4,6 +4,8 @@ import request from '@/utils/request'
 import socket from '@/utils/socket' 
 import { saveImageToDB, getImageFromDB } from '@/utils/userChatStorage'
 import { downloadMessageAsHTML } from '@/utils/export'
+import GroupManageDialog from '@/components/group/GroupManageDialog.vue'
+
 
 
 
@@ -11,6 +13,7 @@ import IconSend from '~icons/material-symbols/send'
 import IconImage from '~icons/material-symbols/image'
 import IconClose from '~icons/material-symbols/close'
 import IconDownload from '~icons/material-symbols/download'
+import IconDelete from '~icons/material-symbols/delete'
 
 
 const props = defineProps({
@@ -74,7 +77,6 @@ async function handleSingleImage(msg) {
       (msg.from === props.chat.id && msg.to === props.currentUser.id)
     )
   ) {
-    // 👇 如果收到图片 base64 且带 filename，则保存到本地
     if (msg.filename && msg.image?.startsWith('data:image')) {
       await saveImageToDB(msg.filename, msg.image)
     }
@@ -97,6 +99,45 @@ async function handleSingleImage(msg) {
   }
 }
 
+// 删除消息
+async function deleteMessage(msg) {
+  if (!msg?.id) return;
+  const confirmed = window.confirm('确定删除这条消息吗？');
+  if (!confirmed) return;
+
+  // 从 localStorage 取出 user 信息，解析为对象
+  const userStr = localStorage.getItem('user');
+  if (!userStr) {
+    alert('用户未登录或未找到用户信息');
+    return;
+  }
+  const user = JSON.parse(userStr);
+
+  console.log("删除消息的Id:", msg.id);
+
+  try {
+    // 传 user_id 作为 query 参数
+    await request.delete(`/api/message/delete/${msg.id}?user_id=${user.id}`);
+
+    // 删除成功后，从 messages 数组里移除该条消息
+    const idx = messages.value.findIndex(m => m.id === msg.id);
+    if (idx !== -1) {
+      messages.value.splice(idx, 1);
+    }
+  } catch (error) {
+    alert('删除失败，请稍后重试');
+  }
+}
+
+
+// 软删除函数，针对非自己消息只从本地移除，不调用接口
+function softDeleteMessage(msg) {
+  if (!msg?.id) return;
+  const confirmed = window.confirm('确定从当前聊天中移除这条消息吗？');
+  if (!confirmed) return;
+  const idx = messages.value.findIndex(m => m.id === msg.id);
+  if (idx !== -1) messages.value.splice(idx, 1);
+}
 
 
 
@@ -122,7 +163,8 @@ async function fetchMessages(chat) {
 
     const rawMessages = resp.data.data.messages || []
 
-    // 异步组装带图片内容的消息
+    console.log("接收到的消息:",rawMessages)
+
     const resolvedMessages = await Promise.all(rawMessages.map(async (msg, idx) => {
       const base = {
         id: msg.id,
@@ -247,7 +289,6 @@ const isGroup = computed(() => props.chat?.type === 'group')
 
 
 
-import GroupManageDialog from '@/components/group/GroupManageDialog.vue'
 const showGroupManageDialog = ref(false)
 function openGroupManageDialog() {
   showGroupManageDialog.value = true
@@ -527,6 +568,16 @@ function sendGroupImage(file) {
           <IconDownload class="w-4 h-4" />
         </button>
 
+          <!-- 删除按钮 -->
+          <button
+              @click="msg.senderId === props.currentUser.id ? deleteMessage(msg) : softDeleteMessage(msg)"
+              class="absolute top-1 right-8 w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-white/70 hover:text-red-500 transition hidden group-hover:flex"
+              title="删除消息"
+          >
+            <IconDelete class="w-4 h-4" />
+          </button>
+
+
 
           <!-- 文字消息 -->
           <template v-if="msg.type === 'text'">
@@ -552,15 +603,22 @@ function sendGroupImage(file) {
     </div>
 
     <!-- 全屏图片查看 -->
-    <div v-if="fullImage" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <img :src="fullImage" class="max-h-[80vh] max-w-[90vw] rounded-xl object-contain" />
+    <div
+        v-if="fullImage"
+        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 pointer-events-auto"
+    >
+      <img
+          :src="fullImage"
+          class="max-h-[80vh] max-w-[90vw] rounded-xl object-contain"
+      />
       <button
-        class="absolute top-6 right-10 bg-white/90 rounded-full p-2 shadow text-gray-800 hover:bg-blue-100 transition"
-        @click="closeImage"
+          class="absolute top-6 right-10 bg-white/90 rounded-full p-2 shadow text-gray-800 hover:bg-blue-100 transition"
+          @click="closeImage"
       >
         <IconClose class="w-6 h-6" />
       </button>
     </div>
+
 
     <!-- footer 输入区 -->
     <div class="flex items-end px-4 py-3 bg-white border-t border-gray-200">
