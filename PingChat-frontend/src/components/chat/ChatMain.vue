@@ -25,6 +25,136 @@ const props = defineProps({
 
 const messages = ref([])
 const loading = ref(false)
+
+// 导出聊天记录为 HTML 文件，含图片
+async function exportChatHistory() {
+  // 取 user
+  const userStr = localStorage.getItem('user')
+  if (!userStr) {
+    alert('请先登录')
+    return
+  }
+  const currentUser = JSON.parse(userStr)
+  const sender_id = currentUser.id
+
+  // 取聊天对象id和类型
+  if (!props.chat) {
+    alert('无聊天对象')
+    return
+  }
+
+  const { type, id } = props.chat
+
+  // 准备请求参数
+  const params = { sender_id }
+  if (type === 'group') {
+    params.group_id = id
+  } else if (type === 'user') {
+    params.receiver_id = id
+  } else {
+    alert('未知聊天类型')
+    return
+  }
+
+  try {
+    const resp = await request.get('/api/chat/export_chat_history', { params })
+    if (resp.data.code !== 200) {
+      alert('导出失败：' + resp.data.message)
+      return
+    }
+    const messages = resp.data.data
+
+    // 生成 HTML 内容
+    const htmlContent = generateHtml(messages, type)
+
+    // 触发浏览器下载
+    downloadHtmlFile(htmlContent, `chat_history_${type}_${id}.html`)
+  } catch (error) {
+    alert('导出异常，请稍后重试')
+  }
+}
+
+// 生成聊天HTML内容，messages是从接口拿到的数组
+function generateHtml(messages, chatType) {
+  // 简单渲染html，支持文本和图片（图片base64或者URL）
+  // 可按需美化样式
+  const style = `
+    <style>
+      body { font-family: Arial, sans-serif; padding: 10px; background: #f5f5f5; }
+      .chat-container { max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+      .message { margin-bottom: 15px; }
+      .sender { font-weight: bold; margin-bottom: 4px; }
+      .time { font-size: 0.8em; color: #888; margin-left: 8px; }
+      .text { white-space: pre-wrap; font-size: 1em; }
+      .image { max-width: 300px; border-radius: 6px; box-shadow: 0 0 5px rgba(0,0,0,0.15); }
+    </style>
+  `
+
+  const messageHtml = messages.map(msg => {
+    const timeStr = new Date(msg.send_time).toLocaleString()
+    const senderName = msg.sender_name || '未知'
+    if (msg.msg_type === 'text') {
+      return `
+      <div class="message">
+        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
+        <div class="text">${escapeHtml(msg.content)}</div>
+      </div>`
+    } else if (msg.msg_type === 'image') {
+      let imgSrc = msg.content
+      // 如果是base64格式的直接用，如果是文件名或URL，需要额外处理（此处默认content是base64或者可访问URL）
+      return `
+      <div class="message">
+        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
+        <img class="image" src="${imgSrc}" alt="图片" />
+      </div>`
+    } else {
+      // 其他类型，简单展示文本
+      return `
+      <div class="message">
+        <div><span class="sender">${senderName}</span><span class="time">${timeStr}</span></div>
+        <div class="text">[不支持的消息类型]</div>
+      </div>`
+    }
+  }).join('\n')
+
+  return `
+  <!DOCTYPE html>
+  <html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>聊天记录导出</title>
+    ${style}
+  </head>
+  <body>
+    <div class="chat-container">
+      <h2>聊天记录（${chatType === 'group' ? '群聊' : '单聊'}）</h2>
+      ${messageHtml}
+    </div>
+  </body>
+  </html>
+  `
+}
+
+// 转义html特殊字符，防止内容中有标签破坏结构
+function escapeHtml(text) {
+  if (!text) return ''
+  return text.replace(/&/g, '&amp;')
+             .replace(/</g, '&lt;')
+             .replace(/>/g, '&gt;')
+             .replace(/"/g, '&quot;')
+             .replace(/'/g, '&#39;')
+}
+
+// 触发浏览器下载html文件
+function downloadHtmlFile(content, filename) {
+  const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 // 导出函数
 function exportMessage(msg) {
   downloadMessageAsHTML(msg)
@@ -351,7 +481,6 @@ function handleImageChange(e) {
   const file = e.target.files[0]
   if (!file || !props.chat) return
 
-  // 👉 判断图片大小（1MB = 1024 * 1024）
   const maxSize = 1 * 1024 * 1024 // 1MB
   if (file.size > maxSize) {
     alert('图片大小不能超过 1MB')
@@ -516,11 +645,28 @@ function sendGroupImage(file) {
         >
           <Icon name="material-symbols:manage-accounts" class="w-5 h-5 mr-2" />群管理
         </button>
+        <button
+          class="ml-2 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-200 to-blue-400 hover:from-blue-300 hover:to-blue-500 text-blue-900 text-sm font-semibold shadow transition-all duration-150"
+          @click="exportChatHistory"
+        >
+          <Icon name="material-symbols:download" class="w-5 h-5 mr-2" />导出记录
+        </button>
+
       </template>
+
       <template v-else>
-        <span class="text-lg font-bold text-gray-800 truncate">{{ props.chat?.name }}</span>
+        <div class="flex items-center flex-1 min-w-0">
+          <span class="text-lg font-bold text-gray-800 truncate">{{ props.chat?.name }}</span>
+        </div>
+        <button
+          class="ml-4 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-sm font-semibold shadow transition-all duration-150"
+          @click="exportChatHistory"
+        >
+          <Icon name="material-symbols:download" class="w-5 h-5 mr-2" />导出记录
+        </button>
       </template>
     </div>
+
 
     <!-- 群管理弹窗 -->
     <GroupManageDialog
@@ -592,7 +738,7 @@ function sendGroupImage(file) {
             </template>
 
             <!-- 操作按钮 -->
-            <div class="absolute -bottom-7 right-0 flex space-x-1">
+            <div class="absolute -bottom-10 right-0 flex space-x-1">
               <button
                 @click.stop="exportMessage(msg)"
                 class="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-blue-600 transition"

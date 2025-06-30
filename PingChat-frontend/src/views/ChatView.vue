@@ -27,6 +27,8 @@ async function fetchChatList() {
     const resp = await request.get('/api/chat/session_list', {
       params: { user_id: userId }
     })
+
+    console.log("会话列表:",resp.data.data)
     // 字段适配
     const newList = resp.data.data.map(item => ({
       id: item.id,
@@ -50,10 +52,18 @@ async function fetchChatList() {
 // 选中会话
 function handleSelectChat(chat) {
   activeChat.value = chat
-  // 清除该会话的未读数
   if (chat) {
     const key = `${chat.id}-${chat.type}`
     if (unreadMap.value[key]) unreadMap.value[key] = 0
+
+    // 根据类型存不同的 id 到 localStorage
+    if (chat.type === 'user') {
+      localStorage.setItem('receiver_id', String(chat.id))
+      localStorage.removeItem('group_id') // 清理群聊id（可选）
+    } else if (chat.type === 'group') {
+      localStorage.setItem('group_id', String(chat.id))
+      localStorage.removeItem('receiver_id') // 清理单聊id（可选）
+    }
   }
 }
 
