@@ -11,6 +11,9 @@ const chatList = ref([])
 
 // 当前激活会话
 const activeChat = ref(null)
+// 未读消息计数，key: `${id}-${type}`
+const unreadMap = ref({})
+
 onMounted(() => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
   if (user) currentUser.value = user
@@ -47,6 +50,20 @@ async function fetchChatList() {
 // 选中会话
 function handleSelectChat(chat) {
   activeChat.value = chat
+  // 清除该会话的未读数
+  if (chat) {
+    const key = `${chat.id}-${chat.type}`
+    if (unreadMap.value[key]) unreadMap.value[key] = 0
+  }
+}
+
+// 处理新消息事件，更新未读数
+function handleNewMessage({ chatId, chatType }) {
+  // 如果不是当前激活会话，未读数+1
+  if (!activeChat.value || activeChat.value.id !== chatId || activeChat.value.type !== chatType) {
+    const key = `${chatId}-${chatType}`
+    unreadMap.value[key] = (unreadMap.value[key] || 0) + 1
+  }
 }
 
 onMounted(fetchChatList)
@@ -66,6 +83,7 @@ function handleGroupDissolved() {
       :chatList="chatList"
       :currentUser="currentUser"
       :activeChat="activeChat"
+      :unreadMap="unreadMap"
       @select-chat="handleSelectChat"
       @group-created="fetchChatList"  
     />
@@ -75,6 +93,7 @@ function handleGroupDissolved() {
         :chat="activeChat"
         :currentUser="currentUser"
         @group-dissolved="handleGroupDissolved"
+        @new-message="handleNewMessage"
       />
       <div
         v-else

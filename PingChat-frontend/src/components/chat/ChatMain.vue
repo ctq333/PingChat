@@ -36,25 +36,26 @@ onUnmounted(() => {
 })
 
 // 收到单聊消息
+const emit = defineEmits(['group-dissolved', 'new-message'])
 function handleSingleMessage(msg) {
-  // 只显示发给自己或自己发出的且和当前窗口相关的消息
-  if (
-    props.chat &&
-    (
-      (msg.from === props.currentUser.id && msg.to === props.chat.id) ||
-      (msg.from === props.chat.id && msg.to === props.currentUser.id)
-    )
-  ) {
+  // 判断是否为当前窗口相关消息
+  const isCurrent = props.chat && (
+    (msg.from === props.currentUser.id && msg.to === props.chat.id) ||
+    (msg.from === props.chat.id && msg.to === props.currentUser.id)
+  )
+  if (isCurrent) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.from,
-      senderName: '', // 可选补充
+      senderName: '',
       type: msg.msg_type,
       content: msg.content,
       time: msg.send_time
     })
     nextTick(scrollToBottom)
   }
+  // 无论是否当前窗口，都向父组件派发新消息事件
+  emit('new-message', { chatId: msg.from === props.currentUser.id ? msg.to : msg.from, chatType: 'user' })
 }
 
 // 收到单聊图片消息
@@ -255,7 +256,7 @@ watch(() => props.chat, (chat) => {
   }
 }, { immediate: true })
 
-const emit = defineEmits(['group-dissolved'])
+// 已在顶部定义 emit，无需重复定义
 function handleGroupDissolved() {
   // 只负责向父组件冒泡事件，不再请求接口
   emit('group-dissolved')
@@ -354,20 +355,20 @@ function autoResize(e) {
 // }
 
 function handleGroupMessage(msg) {
-  if (
-    isGroup.value &&
-    msg.group_id === props.chat.id
-  ) {
+  const isCurrent = isGroup.value && msg.group_id === props.chat.id
+  if (isCurrent) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.sender_id,
-      senderName: msg.sender_name || '', // 这里要保证 senderName 有值
+      senderName: msg.sender_name || '',
       type: msg.msg_type,
       content: msg.content,
       time: msg.send_time
     })
     nextTick(scrollToBottom)
   }
+  // 派发新群聊消息事件
+  emit('new-message', { chatId: msg.group_id, chatType: 'group' })
 }
 async function handleGroupImage(msg) {
   if (
