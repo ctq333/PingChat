@@ -246,6 +246,31 @@ const isGroup = computed(() => props.chat?.type === 'group')
 
 
 
+
+import GroupManageDialog from '@/components/group/GroupManageDialog.vue'
+const showGroupManageDialog = ref(false)
+function openGroupManageDialog() {
+  showGroupManageDialog.value = true
+}
+function closeGroupManageDialog() {
+  showGroupManageDialog.value = false
+}
+
+// 监听props.chat变化，只拉取历史消息（群成员管理交给弹窗组件）
+watch(() => props.chat, (chat) => {
+  if (chat) {
+    fetchMessages(chat)
+  }
+}, { immediate: true })
+
+const emit = defineEmits(['group-dissolved'])
+function handleGroupDissolved() {
+  // 只负责向父组件冒泡事件，不再请求接口
+  emit('group-dissolved')
+  showGroupManageDialog.value = false
+}
+
+
 // 全屏图片查看
 const fullImage = ref(null)
 function openImage(url) {
@@ -399,7 +424,7 @@ function sendGroupText() {
 // 发送图片
 function sendGroupImage(file) {
   const reader = new FileReader()
-  reader.onload = function() {
+  reader.onload = function () {
     socket.sendGroupImage({
       from: props.currentUser.id,
       group_id: props.chat.id,
@@ -424,13 +449,47 @@ function sendGroupImage(file) {
   <div class="flex flex-col h-full w-full bg-gray-50">
     <!-- header -->
     <div class="flex items-center px-4 h-16 border-b border-gray-200 bg-white/80">
-      <div v-if="isGroup" class="flex items-center space-x-2">
-        <div v-for="m in groupMembers" :key="m.id" class="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
-          {{ m.name[0] }}
+      <template v-if="isGroup">
+        <div class="flex items-center flex-1 min-w-0">
+          <span class="text-lg font-bold text-gray-800 truncate">
+            {{ props.chat?.name }}
+          </span>
         </div>
-      </div>
-      <div v-else class="text-lg font-bold text-gray-800">
-        {{ props.chat?.name }}
+        <button
+          class="ml-4 flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white text-sm font-semibold shadow transition-all duration-150"
+          @click="openGroupManageDialog"
+        >
+          <Icon name="material-symbols:manage-accounts" class="w-5 h-5 mr-2" />群管理
+        </button>
+      </template>
+      <template v-else>
+        <span class="text-lg font-bold text-gray-800 truncate">{{ props.chat?.name }}</span>
+      </template>
+    </div>
+
+    <!-- 群成员管理弹窗（已分离为独立组件） -->
+    <GroupManageDialog
+      :show="showGroupManageDialog"
+      :chat="props.chat"
+      @close="closeGroupManageDialog"
+      @group-dissolved="handleGroupDissolved"
+      @member-changed="() => {}"
+    />
+
+
+    <!-- 添加成员弹窗 -->
+    <div v-if="showAddUserDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
+        <h2 class="text-lg font-bold mb-4">选择要添加的成员</h2>
+        <ul class="mb-4 max-h-60 overflow-y-auto">
+          <li v-for="u in addableUsers" :key="u.id" class="flex items-center justify-between py-2 border-b last:border-b-0">
+            <span>{{ u.name }}</span>
+            <button class="text-blue-500 hover:underline text-sm" @click="addGroupMember(u.id)">添加</button>
+          </li>
+        </ul>
+        <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-700" @click="closeAddUserDialog">
+          <IconClose class="w-6 h-6" />
+        </button>
       </div>
       <div class="ml-3 text-gray-500 text-base font-normal">{{ props.chat?.name }}</div>
     </div>

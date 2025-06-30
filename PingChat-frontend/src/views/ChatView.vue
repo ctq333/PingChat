@@ -25,7 +25,7 @@ async function fetchChatList() {
       params: { user_id: userId }
     })
     // 字段适配
-    chatList.value = resp.data.data.map(item => ({
+    const newList = resp.data.data.map(item => ({
       id: item.id,
       name: item.name,
       type: item.type, // "user" 或 "group"
@@ -33,8 +33,14 @@ async function fetchChatList() {
       lastMsg: item.last_msg,
       avatarUrl: item.avatar_url // 可选
     }))
+    chatList.value = newList
+    // 如果当前激活会话已不存在于新列表，则自动清空
+    if (activeChat.value && !newList.some(c => c.id === activeChat.value.id && c.type === activeChat.value.type)) {
+      activeChat.value = null
+    }
   } catch (e) {
     chatList.value = []
+    activeChat.value = null
   }
 }
 
@@ -47,11 +53,16 @@ onMounted(fetchChatList)
 function handleGroupCreated() {
   fetchChatList()  // 刷新列表，显示新群组
 }
+function handleGroupDissolved() {
+  activeChat.value = null
+  fetchChatList()  // 重新拉取会话列表
+}
 </script>
 
 <template>
   <div class="flex w-screen h-screen bg-gray-50">
     <ChatSidebar
+      :key="chatList.length"
       :chatList="chatList"
       :currentUser="currentUser"
       :activeChat="activeChat"
@@ -63,6 +74,7 @@ function handleGroupCreated() {
         v-if="activeChat"
         :chat="activeChat"
         :currentUser="currentUser"
+        @group-dissolved="handleGroupDissolved"
       />
       <div
         v-else
