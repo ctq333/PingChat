@@ -7,6 +7,9 @@ import IconTune from '~icons/material-symbols/tune'
 import IconExport from '~icons/material-symbols/download' // 用 Material Symbols 的下载/导出图标
 import { ref } from 'vue'
 import GroupCreateDialog from '@/components/group/GroupCreateDialog.vue'
+import { useRouter } from 'vue-router' // 引入 Vue Router
+
+const router = useRouter() // 获取路由实例
 
 const emit = defineEmits(['group-created'])
 const props = defineProps({
@@ -25,6 +28,12 @@ function handleMenu(action) {
     // 这里触发导出聊天记录逻辑
     // 你可以 emit 事件，或者直接调用导出逻辑
     alert('导出聊天记录功能待实现')
+  } else if (action === 'logout') {
+    // 清除 localStorage
+    localStorage.clear()
+
+    // 跳转到登录页
+    router.push('/login')
   }
 }
 const showCreateDialog = ref(false)
