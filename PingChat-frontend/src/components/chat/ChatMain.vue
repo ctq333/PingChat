@@ -66,7 +66,11 @@ async function handleSingleImage(msg) {
       (msg.from === props.chat.id && msg.to === props.currentUser.id)
     )
   ) {
-    // 优先从 IndexedDB 取图片数据
+    // 👇 如果收到图片 base64 且带 filename，则保存到本地
+    if (msg.filename && msg.image?.startsWith('data:image')) {
+      await saveImageToDB(msg.filename, msg.image)
+    }
+
     let imageData = null
     if (msg.filename) {
       imageData = await getImageFromDB(msg.filename)
@@ -75,7 +79,7 @@ async function handleSingleImage(msg) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.from,
-      senderName: '', 
+      senderName: '',
       type: 'image',
       content: imageData || msg.image || '[图片丢失]',
       filename: msg.filename,
@@ -84,6 +88,7 @@ async function handleSingleImage(msg) {
     nextTick(scrollToBottom)
   }
 }
+
 
 
 
@@ -328,16 +333,23 @@ function handleGroupMessage(msg) {
     nextTick(scrollToBottom)
   }
 }
-function handleGroupImage(msg) {
+async function handleGroupImage(msg) {
   if (
     isGroup.value &&
     msg.group_id === props.chat.id
   ) {
+    // 👇 尝试保存图片到接收方本地 IndexedDB（防止刷新后丢失）
+    if (msg.filename && msg.image?.startsWith('data:image')) {
+      await saveImageToDB(msg.filename, msg.image)
+    }
+
+    // 👇 渲染消息（图片内容来自 socket 传来的 base64）
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.sender_id,
-      type: msg.msg_type,
-      content: msg.image, // 或者 msg.extra?.image_id
+      senderName: msg.sender_name || '',
+      type: 'image',
+      content: msg.image,
       filename: msg.filename,
       imageId: msg.image_id,
       time: msg.send_time
@@ -345,6 +357,7 @@ function handleGroupImage(msg) {
     nextTick(scrollToBottom)
   }
 }
+
 // 发送消息
 function sendGroupText() {
   const text = inputText.value.trim()
