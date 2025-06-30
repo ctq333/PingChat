@@ -72,18 +72,19 @@ function offSingleImage(fn) {
 }
 
 // 群聊
-function sendGroupMessage({ from, group_id, content }) {
+function sendGroupMessage({ from, group_id, content, ...rest }) {
   if (socket && socket.connected) {
     socket.emit('group_message', {
       from,
       group_id,
       content,
       msg_type: 'text',
-      send_time: Date.now()
+      send_time: Date.now(),
+      ...rest
     })
   }
 }
-function sendGroupImage({ from, group_id, image, filename, extra }) {
+function sendGroupImage({ from, group_id, image, filename, extra, ...rest }) {
   if (socket && socket.connected) {
     socket.emit('group_image', {
       from,
@@ -92,7 +93,8 @@ function sendGroupImage({ from, group_id, image, filename, extra }) {
       filename,
       msg_type: 'image',
       send_time: Date.now(),
-      extra
+      extra,
+      ...rest
     })
   }
 }

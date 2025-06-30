@@ -25,6 +25,7 @@ const props = defineProps({
 
 const messages = ref([])
 const loading = ref(false)
+const username = ref(null)
 
 // 导出聊天记录为 HTML 文件，含图片
 async function exportChatHistory() {
@@ -163,7 +164,10 @@ function exportMessage(msg) {
 // 连接 socket
 onMounted(() => {
   const user = JSON.parse(localStorage.getItem('user') || 'null')
-  if (user) socket.connect(user.id)
+  if (user) {
+    socket.connect(user.id)
+    username.value = user.username
+  }
   socket.onSingleMessage(handleSingleMessage)
   socket.onGroupMessage(handleGroupMessage)
   socket.onGroupImage(handleGroupImage)
@@ -188,7 +192,7 @@ function handleSingleMessage(msg) {
     messages.value.push({
       id: msg.id || Date.now(),
       senderId: msg.from,
-      senderName: '',
+      senderName: props.currentUser.username || '',
       type: msg.msg_type,
       content: msg.content,
       time: msg.send_time
@@ -338,11 +342,6 @@ async function fetchMessages(chat) {
 }
 
 
-// 监听切换聊天对象时拉历史
-watch(() => props.chat, (chat) => {
-  if (chat) fetchMessages(chat)
-}, { immediate: true })
-
 // 发送文字消息
 const inputText = ref('')
 function sendText() {
@@ -354,7 +353,8 @@ function sendText() {
     socket.sendGroupMessage({
       from: props.currentUser.id,
       group_id: props.chat.id,
-      content: text
+      content: text,
+      sender_name: props.currentUser.name || props.currentUser.nickname || props.currentUser.username
     })
   } else {
     // 单聊
@@ -369,6 +369,7 @@ function sendText() {
   messages.value.push({
     id: Date.now(),
     senderId: props.currentUser.id,
+    senderName: props.currentUser.username || '',
     type: 'text',
     content: text,
     time: Date.now()
@@ -508,6 +509,7 @@ function handleImageChange(e) {
       messages.value.push({
         id: Date.now(),
         senderId: props.currentUser.id,
+        senderName: props.currentUser.name || '',
         type: 'image',
         content: base64Data,
         filename: file.name,
@@ -583,26 +585,27 @@ async function handleGroupImage(msg) {
   }
 }
 
-// 发送消息
-function sendGroupText() {
-  const text = inputText.value.trim()
-  if (!text || !props.chat) return
-  socket.sendGroupMessage({
-    from: props.currentUser.id,
-    group_id: props.chat.id,
-    content: text
-  })
-  // 本地回显
-  messages.value.push({
-    id: Date.now(),
-    senderId: props.currentUser.id,
-    type: 'text',
-    content: text,
-    time: Date.now()
-  })
-  inputText.value = ''
-  nextTick(scrollToBottom)
-}
+// // 发送消息
+// function sendGroupText() {
+//   const text = inputText.value.trim()
+//   if (!text || !props.chat) return
+//   socket.sendGroupMessage({
+//     from: props.currentUser.id,
+//     group_id: props.chat.id,
+//     content: text,
+//     sender_name: props.currentUser.name || props.currentUser.nickname || props.currentUser.username
+//   })
+//   // 本地回显
+//   messages.value.push({
+//     id: Date.now(),
+//     senderId: props.currentUser.id,
+//     type: 'text',
+//     content: text,
+//     time: Date.now()
+//   })
+//   inputText.value = ''
+//   nextTick(scrollToBottom)
+// }
 
 // 发送图片
 function sendGroupImage(file) {
@@ -613,7 +616,8 @@ function sendGroupImage(file) {
       group_id: props.chat.id,
       image: reader.result,
       filename: file.name,
-      extra: {} // 可选图片尺寸
+      extra: {}, // 可选图片尺寸
+      sender_name: props.currentUser.name || props.currentUser.nickname || props.currentUser.username
     })
     messages.value.push({
       id: Date.now(),
@@ -621,6 +625,7 @@ function sendGroupImage(file) {
       type: 'image',
       content: reader.result,
       filename: file.name,
+      senderName: props.currentUser.name || '',
       time: Date.now()
     })
   }
@@ -761,7 +766,7 @@ function sendGroupImage(file) {
             v-if="isGroup && msg.senderId === props.currentUser.id"
             class="ml-2 w-8 h-8 flex-shrink-0 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center font-bold text-base"
           >
-            {{ msg.senderName[0] }}
+            {{ msg.senderName && msg.senderName.length > 0 ? msg.senderName[0] : '你' }}
           </div>
         </div>
       </div>

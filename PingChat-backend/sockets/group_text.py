@@ -17,7 +17,8 @@ def register_group_text(socketio):
             group_id: int,
             content: str,
             msg_type: 'text',
-            send_time: 时间戳或字符串
+            send_time: 时间戳,
+            sender_name: str  # 新增
         }
         """
         # 入库
@@ -28,7 +29,9 @@ def register_group_text(socketio):
             msg_type='text',
             content=data['content'],
             send_time=datetime.fromtimestamp(data['send_time']/1000) if isinstance(data['send_time'], (int, float)) else datetime.utcnow(),
-            status='sent'
+            status='sent',
+            # 可以冗余存一份 sender_name 到 extra 字段
+            extra={'sender_name': data.get('sender_name', '')}
         )
         db.session.add(msg)
         db.session.commit()
