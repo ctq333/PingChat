@@ -29,6 +29,12 @@ function connect(userId) {
   socket.on('group_image', (msg) => {
     groupImageListeners.forEach(fn => fn(msg))
   })
+
+  socket.on('force_logout', (data) => {
+    alert(data.msg || '您已被管理员强制下线')
+    localStorage.clear()
+    window.location.href = '/login'
+  })
 }
 
 // 发送单聊文字

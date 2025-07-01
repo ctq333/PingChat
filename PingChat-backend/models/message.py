@@ -7,7 +7,7 @@ class Message(db.Model):
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
     sender_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False, index=True)
     receiver_id = db.Column(db.BigInteger, index=True)
-    group_id = db.Column(db.BigInteger, index=True)
+    group_id = db.Column(db.BigInteger, db.ForeignKey('groupchat.id'), index=True)
     msg_type = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text)
     send_time = db.Column(db.DateTime, nullable=False)

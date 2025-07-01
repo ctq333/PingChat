@@ -44,6 +44,24 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true, hideNavBar: false } 
   },
   { 
+    path: '/admin/users', 
+    component: () => import('@/pages/admin/users.vue'), 
+    name: 'admin-users', 
+    meta: { requiresAuth: true, requiresAdmin: true, hideNavBar: false } 
+  },
+  { 
+    path: '/admin/online-users', 
+    component: () => import('@/pages/admin/online-users.vue'), 
+    name: 'admin-online-users', 
+    meta: { requiresAuth: true, requiresAdmin: true, hideNavBar: false } 
+  },
+  { 
+    path: '/admin/chat-monitor', 
+    component: () => import('@/pages/admin/chat-monitor.vue'), 
+    name: 'admin-chat-monitor', 
+    meta: { requiresAuth: true, requiresAdmin: true, hideNavBar: false } 
+  },
+  { 
     path: '/group', 
     component: GroupManageView, 
     name: 'group', 

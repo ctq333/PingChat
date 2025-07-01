@@ -42,3 +42,31 @@ def create_group():
             'member_ids': member_ids
         }
     })
+
+@bp.route('/mute_member', methods=['POST'])
+def mute_member():
+    data = request.get_json()
+    group_id = data.get('group_id')
+    user_id = data.get('user_id')
+    if not group_id or not user_id:
+        return jsonify({'code': 400, 'msg': '参数缺失'}), 400
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
+    if not member:
+        return jsonify({'code': 404, 'msg': '群成员不存在'}), 404
+    member.muted = True
+    db.session.commit()
+    return jsonify({'code': 200, 'msg': '已禁言该群成员'})
+
+@bp.route('/unmute_member', methods=['POST'])
+def unmute_member():
+    data = request.get_json()
+    group_id = data.get('group_id')
+    user_id = data.get('user_id')
+    if not group_id or not user_id:
+        return jsonify({'code': 400, 'msg': '参数缺失'}), 400
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
+    if not member:
+        return jsonify({'code': 404, 'msg': '群成员不存在'}), 404
+    member.muted = False
+    db.session.commit()
+    return jsonify({'code': 200, 'msg': '已解除禁言'})

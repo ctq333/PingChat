@@ -31,9 +31,10 @@ function handleMenu(action) {
   } else if (action === 'logout') {
     // 清除 localStorage
     localStorage.clear()
-
     // 跳转到登录页
     router.push('/login')
+  } else if (action === 'admin'){
+    router.push('/admin')
   }
 }
 const showCreateDialog = ref(false)

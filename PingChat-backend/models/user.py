@@ -10,6 +10,7 @@ class User(db.Model):
     avatar_url = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False)
     is_banned = db.Column(db.Boolean, default=False)
+    is_muted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     updated_at = db.Column(
         db.DateTime,
