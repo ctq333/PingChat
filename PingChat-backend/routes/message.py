@@ -1,17 +1,19 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Message, GroupMember, GroupChat, User
-from sqlalchemy import or_, and_, desc, func
+from sqlalchemy import or_, and_, func
 
 bp = Blueprint('message', __name__, url_prefix='/api/message')
 
 @bp.route('/session_list', methods=['GET'])
-@jwt_required()
 def get_session_list():
-    user_id = get_jwt_identity()
+    # 去掉 JWT 验证，user_id 需要从请求参数或者其他地方获得
+    # 这里举个例子，从 query string 获取 user_id，真实项目请根据实际调整
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({"code": 400, "msg": "缺少 user_id 参数"}), 400
 
-    # ---- 1. 私聊会话 ----
-    # 查询与当前用户有关的所有私聊消息（group_id is NULL）
+    # 私聊会话查询逻辑保持不变
     private_msgs = (
         db.session.query(
             func.if_(
@@ -48,8 +50,6 @@ def get_session_list():
         .all()
     )
 
-    # ---- 2. 群聊会话 ----
-    # 当前用户加入的群
     user_groups = db.session.query(GroupMember.group_id).filter_by(user_id=user_id)
     group_msgs = (
         db.session.query(
@@ -72,9 +72,7 @@ def get_session_list():
         .all()
     )
 
-    # ---- 3. 合并会话 ----
     sessions = []
-    # 私聊
     for msg in private_last_msgs:
         other_id = msg.receiver_id if msg.sender_id == user_id else msg.sender_id
         user = User.query.get(other_id)
@@ -88,7 +86,6 @@ def get_session_list():
             "send_time": msg.send_time.isoformat()
         })
 
-    # 群聊
     for msg in group_last_msgs:
         group = GroupChat.query.get(msg.group_id)
         sessions.append({
@@ -101,10 +98,36 @@ def get_session_list():
             "send_time": msg.send_time.isoformat()
         })
 
-    # 按最后通讯时间倒序排列
     sessions.sort(key=lambda x: x['send_time'], reverse=True)
 
     return jsonify({"code": 200, "data": sessions})
+
+@bp.route('/delete/<int:msg_id>', methods=['DELETE', 'OPTIONS'])
+def delete_message(msg_id):
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    # 不再验证 token，user_id 同样需要由请求传入
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({"code": 400, "msg": "缺少 user_id 参数"}), 400
+
+
+    msg = Message.query.get(msg_id)
+    if not msg:
+        return jsonify({"code": 404, "msg": "消息不存在"}), 404
+
+    if msg.sender_id != user_id:
+        return jsonify({"code": 403, "msg": "无权限删除此消息"}), 403
+
+    try:
+        db.session.delete(msg)
+        db.session.commit()
+        return jsonify({"code": 200, "msg": "删除成功"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"code": 500, "msg": "删除失败", "error": str(e)})
+
 
 @bp.route('/list', methods=['GET'])
 def get_message_list():

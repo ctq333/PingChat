@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models import User, Message, GroupChat, GroupMember
 from extensions import db
 from sqlalchemy import or_, and_
+from sqlalchemy import func
 
 bp = Blueprint('chat', __name__)
 
@@ -37,6 +38,7 @@ def get_history():
             'content': msg.content,
             'send_time': msg.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
             'avatar_url': sender.avatar_url if sender else '',
+            'extra': msg.extra or {},
         }
 
     return jsonify({
@@ -51,29 +53,28 @@ def get_history():
 @bp.route('/group_history', methods=['GET'])
 def get_group_history():
     group_id = request.args.get('group_id', type=int)
-    page = request.args.get('page', 1, type=int)
-    page_size = request.args.get('page_size', 30, type=int)
-
     if not group_id:
         return jsonify({'code': 400, 'message': '参数缺失'}), 400
 
-    # 使用 join 关联 Message 和 User 表，获取 sender 的 username
-    query = db.session.query(Message, User.username.label('sender_username')).join(
+    # 查询总数
+    total = db.session.query(func.count(Message.id)).filter(Message.group_id == group_id).scalar()
+
+    # 查全部消息，不分页
+    query = db.session.query(Message, User.username.label('sender_username')).outerjoin(
         User, Message.sender_id == User.id
     ).filter(
         Message.group_id == group_id
     ).order_by(Message.send_time.asc())
 
-    total = query.count()
-    results = query.offset((page-1)*page_size).limit(page_size).all()
+    results = query.all()
 
     def msg_to_dict(msg_result):
-        message = msg_result[0]  # Message 对象
-        sender_username = msg_result[1]  # User.username
+        message = msg_result[0]
+        sender_username = msg_result[1]
         return {
             'id': message.id,
             'sender_id': message.sender_id,
-            'sender_name': sender_username,  # 用 User.username 替换原来的 sender_name
+            'sender_name': sender_username or '',
             'msg_type': message.msg_type,
             'content': message.content,
             'send_time': message.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -133,3 +134,69 @@ def session_list():
     result.sort(key=msg_time_key, reverse=True)
 
     return jsonify({"code": 200, "data": result})
+
+@bp.route('/export_chat_history', methods=['GET'])
+def export_chat_history():
+    sender_id = request.args.get('sender_id', type=int)
+    receiver_id = request.args.get('receiver_id', type=int)
+    group_id = request.args.get('group_id', type=int)
+
+    if not sender_id:
+        return jsonify({'code': 400, 'message': '缺少 sender_id 参数'}), 400
+
+    # 单聊导出
+    if receiver_id:
+        query = Message.query.filter(
+            or_(
+                and_(Message.sender_id == sender_id, Message.receiver_id == receiver_id),
+                and_(Message.sender_id == receiver_id, Message.receiver_id == sender_id)
+            ),
+            Message.group_id == None
+        ).order_by(Message.send_time.asc())
+
+        messages = query.all()
+
+        def msg_to_dict(msg):
+            sender = User.query.get(msg.sender_id)
+            return {
+                'id': msg.id,
+                'sender_id': msg.sender_id,
+                'sender_name': sender.nickname or sender.username if sender else '未知',
+                'msg_type': msg.msg_type,
+                'content': msg.content,
+                'send_time': msg.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
+                'avatar_url': sender.avatar_url if sender else '',
+                'extra': msg.extra or {},
+            }
+
+        data = [msg_to_dict(m) for m in messages]
+        return jsonify({'code': 200, 'message': '单聊聊天记录导出成功', 'data': data})
+
+    # 群聊导出
+    elif group_id:
+        query = db.session.query(Message, User.nickname.label('sender_nickname'), User.username.label('sender_username')).join(
+            User, Message.sender_id == User.id
+        ).filter(
+            Message.group_id == group_id
+        ).order_by(Message.send_time.asc())
+
+        results = query.all()
+
+        def msg_to_dict(msg_result):
+            message = msg_result[0]
+            sender_name = msg_result[1] or msg_result[2] or '未知'
+            return {
+                'id': message.id,
+                'sender_id': message.sender_id,
+                'sender_name': sender_name,
+                'msg_type': message.msg_type,
+                'content': message.content,
+                'send_time': message.send_time.strftime("%Y-%m-%dT%H:%M:%S"),
+                'extra': message.extra or {},
+            }
+
+        data = [msg_to_dict(r) for r in results]
+        return jsonify({'code': 200, 'message': '群聊聊天记录导出成功', 'data': data})
+
+    else:
+        return jsonify({'code': 400, 'message': '缺少 receiver_id 或 group_id 参数'}), 400

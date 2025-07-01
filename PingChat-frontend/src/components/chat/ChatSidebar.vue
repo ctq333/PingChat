@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import ChatListItem from './ChatListItem.vue'
 import ChatSidebarFooter from './ChatSidebarFooter.vue'
 
-const props = defineProps(['chatList', 'currentUser', 'activeChat'])
+const props = defineProps(['chatList', 'currentUser', 'activeChat', 'unreadMap'])
 const emit = defineEmits(['select-chat', 'group-created'])
 
 // 排序规则
@@ -31,6 +31,7 @@ function handleGroupCreated(group) {
         :key="item.id + '-' + item.type"
         :item="item"
         :active="props.activeChat && props.activeChat.id === item.id && props.activeChat.type === item.type"
+        :unreadCount="props.unreadMap?.[`${item.id}-${item.type}`] || 0"
         @click="selectChat(item)"
       />
     </div>

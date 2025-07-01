@@ -8,6 +8,8 @@ import IconExport from '~icons/material-symbols/download' // 用 Material Symbol
 import { ref } from 'vue'
 import GroupCreateDialog from '@/components/group/GroupCreateDialog.vue'
 import { useRouter } from 'vue-router' // 引入 Vue Router
+import { clearImageDB } from '@/utils/userChatStorage'
+
 
 const router = useRouter() // 获取路由实例
 
@@ -33,9 +35,16 @@ function handleMenu(action) {
     localStorage.clear()
     // 跳转到登录页
     router.push('/login')
+  } else if (action === 'clear-cache') {
+  clearImageDB().then(() => {
+    alert('图片缓存已清除')
+  }).catch(() => {
+    alert('清除失败，请稍后重试')
+  })
   } else if (action === 'admin'){
     router.push('/admin')
   }
+
 }
 const showCreateDialog = ref(false)
 function handleAddGroup() {
@@ -71,6 +80,9 @@ function handleGroupCreated(group) {
         </button>
         <button @click="handleMenu('export')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconExport class="w-5 h-5 mr-2" />导出聊天记录
+        </button>
+        <button @click="handleMenu('clear-cache')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
+          <IconSettings class="w-5 h-5 mr-2" />清除图片缓存
         </button>
         <button v-if="isAdmin" @click="handleMenu('admin')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconAdminPanelSettings class="w-5 h-5 mr-2" />管理员界面
