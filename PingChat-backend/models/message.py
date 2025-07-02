@@ -6,7 +6,7 @@ class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
     sender_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False, index=True)
-    receiver_id = db.Column(db.BigInteger, index=True)
+    receiver_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), index=True)
     group_id = db.Column(db.BigInteger, db.ForeignKey('groupchat.id'), index=True)
     msg_type = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text)
@@ -15,3 +15,5 @@ class Message(db.Model):
     read_time = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='sent')
     extra = db.Column(MySQLJSON)
+    group = db.relationship('GroupChat', foreign_keys=[group_id], lazy='joined')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], lazy='joined')

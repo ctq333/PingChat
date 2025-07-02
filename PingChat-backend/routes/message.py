@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Message, GroupMember, GroupChat, User
 from sqlalchemy import or_, and_, func
+from sqlalchemy.orm import joinedload
 
 bp = Blueprint('message', __name__, url_prefix='/api/message')
 
@@ -139,7 +140,7 @@ def get_message_list():
     page_size = request.args.get('page_size', 20, type=int)
 
     query = Message.query
-    
+
     # 筛选条件
     if user_id:
         query = query.filter(or_(Message.sender_id == user_id, Message.receiver_id == user_id))
@@ -147,9 +148,9 @@ def get_message_list():
         query = query.filter(Message.group_id == group_id)
     if keyword:
         query = query.filter(Message.content.like(f"%{keyword}%"))
-    
+
     # 时间范围筛选
-    if time_range:
+    if time_range and time_range != "all":
         from datetime import datetime, timedelta
         now = datetime.now()
         if time_range == '1h':
@@ -162,37 +163,42 @@ def get_message_list():
             start_time = now - timedelta(days=30)
         else:
             start_time = None
-        
         if start_time:
             query = query.filter(Message.send_time >= start_time)
 
-    total = query.count()
-    messages = query.order_by(Message.send_time.desc()).offset((page-1)*page_size).limit(page_size).all()
+    # 优化count
+    total = query.order_by(None).count()
+
+    # 预加载 sender/group/receiver，避免N+1查询
+    messages = query.options(
+        joinedload(Message.sender),
+        joinedload(Message.group),
+        joinedload(Message.receiver)
+    ).order_by(Message.send_time.desc()).offset((page-1)*page_size).limit(page_size).all()
 
     result = []
     for m in messages:
-        sender = User.query.get(m.sender_id)
-        receiver = User.query.get(m.receiver_id) if m.receiver_id else None
-        group = GroupChat.query.get(m.group_id) if m.group_id else None
-        
+        sender = m.sender
+        receiver = m.receiver
+        group = m.group
         result.append({
-            'id': m.id,
-            'sender_id': m.sender_id,
-            'sender_username': sender.username if sender else '',
-            'sender_nickname': sender.nickname if sender else '',
-            'sender_avatar': sender.avatar_url if sender else '',
-            'receiver_id': m.receiver_id,
-            'receiver_username': receiver.username if receiver else '',
-            'receiver_nickname': receiver.nickname if receiver else '',
-            'group_id': m.group_id,
-            'group_name': group.name if group else '',
-            'msg_type': m.msg_type,
-            'content': m.content,
-            'created_at': m.send_time.isoformat() if m.send_time else '',
+            "id": m.id,
+            "sender_id": m.sender_id,
+            "sender_username": sender.username if sender else "",
+            "sender_nickname": sender.nickname if sender else "",
+            "sender_avatar": sender.avatar_url if sender else "",
+            "receiver_id": m.receiver_id,
+            "receiver_username": receiver.username if receiver else "",
+            "receiver_nickname": receiver.nickname if receiver else "",
+            "group_id": m.group_id,
+            "group_name": group.name if group else "",
+            "msg_type": m.msg_type,
+            "content": m.content,
+            "created_at": m.send_time.isoformat() if m.send_time else "",
         })
-    
+
     return jsonify({
-        'code': 200, 
+        'code': 200,
         'data': {
             'messages': result,
             'total': total,

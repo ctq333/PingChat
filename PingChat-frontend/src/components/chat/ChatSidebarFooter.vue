@@ -70,13 +70,10 @@ function handleGroupCreated(group) {
         <IconSettings class="w-6 h-6" />
       </button>
       <div v-if="showMenu"
-        class="absolute z-10 left-0 bottom-12 min-w-[140px] rounded shadow bg-white border border-gray-200 py-2"
+        class="absolute z-10 left-0 bottom-12 min-w-[180px] rounded shadow bg-white border border-gray-200 py-2 w-auto"
       >
         <button @click="handleMenu('logout')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconLogout class="w-5 h-5 mr-2" />退出登录
-        </button>
-        <button @click="handleMenu('settings')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
-          <IconTune class="w-5 h-5 mr-2" />系统设置
         </button>
         <button @click="handleMenu('export')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconExport class="w-5 h-5 mr-2" />导出聊天记录

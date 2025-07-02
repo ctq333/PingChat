@@ -5,30 +5,19 @@ from extensions import socketio
 from flask import request
 from datetime import datetime
 
-# 在线用户信息：{user_id: {'sid':..., 'login_time':..., 'ip':...}}
-user_sid_map = {}
-user_online_info = {}
-
 @socketio.on('connect')
 def handle_connect():
-    user_id = int(request.args.get('user_id'))  
+    user_id = str(request.args.get('user_id'))
     sid = request.sid
-    user_sid_map.setdefault(user_id, []).append(sid)
-    user_online_info[user_id] = {
-        'sid': sid,
-        'login_time': datetime.now().isoformat(),
-        'ip': request.remote_addr
-    }
+    user_sid_map[user_id] = sid
+    sid_user_map[sid] = user_id
 
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
-    for uid, sids in list(user_sid_map.items()):
-        if sid in sids:
-            sids.remove(sid)
-            if not sids:
-                del user_sid_map[uid]
-            break
+    user_id = sid_user_map.pop(sid, None)
+    if user_id:
+        user_sid_map.pop(user_id, None)
 
 def register_chat_events(socketio):
     from flask import request

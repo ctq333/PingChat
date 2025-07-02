@@ -7,6 +7,7 @@ import ui from '@nuxt/ui/vue-plugin'
 import store from './store'
 import socket from '@/utils/socket'
 
+
 const app = createApp(App)
 app.use(router)
 app.use(ui)
