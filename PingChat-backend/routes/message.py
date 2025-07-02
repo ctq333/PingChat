@@ -132,18 +132,19 @@ def delete_message(msg_id):
 
 @bp.route('/list', methods=['GET'])
 def get_message_list():
-    user_id = request.args.get('user_id', type=int)
-    group_id = request.args.get('group_id', type=int)
+    user_id = request.args.get('userId', type=int)
+    group_id = request.args.get('groupId', type=int)
     keyword = request.args.get('keyword', type=str)
     time_range = request.args.get('timeRange', type=str)
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
 
     query = Message.query
-
+    print(user_id, group_id, keyword, time_range, page, page_size)
     # 筛选条件
     if user_id:
         query = query.filter(or_(Message.sender_id == user_id, Message.receiver_id == user_id))
+        print('SQL:', str(query.statement.compile(compile_kwargs={"literal_binds": True})))
     if group_id:
         query = query.filter(Message.group_id == group_id)
     if keyword:
@@ -175,7 +176,7 @@ def get_message_list():
         joinedload(Message.group),
         joinedload(Message.receiver)
     ).order_by(Message.send_time.desc()).offset((page-1)*page_size).limit(page_size).all()
-
+    print(str(query.statement.compile(compile_kwargs={"literal_binds": True})))
     result = []
     for m in messages:
         sender = m.sender

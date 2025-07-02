@@ -9,7 +9,7 @@ let groupImageListeners = []
 function connect(userId) {
   if (socket) return
   socket = io(import.meta.env.VITE_SOCKET_URL || 'http://127.0.0.1:5000', {
-    query: { user_id: userId }
+    query: { user_id: Number(userId) }
   })
   socket.on('connect', () => console.log('socket.io 已连接'))
   socket.on('disconnect', () => console.log('socket.io 已断开'))

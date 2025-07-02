@@ -75,9 +75,6 @@ function handleGroupCreated(group) {
         <button @click="handleMenu('logout')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconLogout class="w-5 h-5 mr-2" />退出登录
         </button>
-        <button @click="handleMenu('export')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
-          <IconExport class="w-5 h-5 mr-2" />导出聊天记录
-        </button>
         <button @click="handleMenu('clear-cache')" class="flex w-full items-center px-4 py-2 text-gray-700 hover:bg-blue-50 text-sm">
           <IconSettings class="w-5 h-5 mr-2" />清除图片缓存
         </button>

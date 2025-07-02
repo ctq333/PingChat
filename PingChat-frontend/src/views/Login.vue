@@ -83,6 +83,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import store from '@/store'
 import request from '@/utils/request'
+import socket from '@/utils/socket'
 
 
 const account = ref('')
@@ -113,6 +114,7 @@ async function onBtnLoginClick() {
     if (response.data.code === 200) {
       store.commit('SET_USER', response.data.data.user)
       store.commit('SET_TOKEN', response.data.data.token)
+      socket.connect(response.data.data.user.id)
       router.push('/')
     } else {
       loginError.value = `登录失败: ${response.data.message}`

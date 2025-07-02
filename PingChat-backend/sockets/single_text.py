@@ -43,8 +43,9 @@ def register_single_text(socketio):
         data['id'] = msg.id
 
         # 3. 发送给目标用户
-        to_user = str(data['to'])
+        to_user = int(data['to'])
         sid = user_sid_map.get(to_user)
+        print(f"Try get sid for {to_user} ({type(to_user)}), result: {sid}")
         if sid:
             socketio.emit('single_message', data, room=sid)
 

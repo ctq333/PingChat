@@ -191,7 +191,7 @@ onMounted(() => {
             <div class="mb-2">
               <span class="inline-flex items-center text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-md">
                 <UIcon name="material-symbols:group" class="size-4 mr-1" />
-                {{ message.group_name || `群组 ${message.group_id}` }}
+                {{ message.group_name || `群组 ` }}
               </span>
             </div>
             <div class="text-gray-800 whitespace-pre-wrap break-words text-sm leading-relaxed">{{ message.content }}</div>

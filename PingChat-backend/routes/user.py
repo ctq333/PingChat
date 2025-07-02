@@ -2,6 +2,7 @@ from flask import Blueprint,  request, jsonify
 from extensions import db, socketio
 from models import User,GroupMember,Message
 from sockets.__init__ import user_sid_map  # 导入映射
+from flask_socketio import disconnect
 bp = Blueprint('user', __name__)
 
 # 在这里注册路由
@@ -121,12 +122,14 @@ def unmute_user():
 def kick_user():
     data = request.get_json()
     user_id = data.get('id')
+    if user_id is not None:
+        user_id = int(user_id)
     if not user_id:
         return jsonify({'code': 400, 'msg': '参数缺失'}), 400
     sid = user_sid_map.get(user_id)
     if sid:
         socketio.emit('force_logout', {'msg': '您已被管理员强制下线'}, to=sid)
-        socketio.disconnect(sid)
+        disconnect(sid, namespace='/')
         return jsonify({'code': 200, 'msg': '已踢出用户'})
     else:
         return jsonify({'code': 404, 'msg': '用户不在线'}), 404

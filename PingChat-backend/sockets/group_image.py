@@ -49,10 +49,10 @@ def register_group_image(socketio):
 
         # 群发（含base64图片）
         group_id = data['group_id']
-        from_user = str(data['from'])
+        from_user = int(data['from'])
         user_ids = get_group_user_ids(group_id)
         for uid in user_ids:
-            uid = str(uid)
+            uid = int(uid)
             if uid != from_user:
                 sid = user_sid_map.get(uid)
                 if sid:

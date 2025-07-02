@@ -33,7 +33,7 @@ def register_single_image(socketio):
         data['id'] = msg.id
 
         # 发给接收方（含 base64 图像）
-        to_user = str(data['to'])
+        to_user = int(data['to'])
         sid = user_sid_map.get(to_user)
         if sid:
             socketio.emit('single_image', data, room=sid)
